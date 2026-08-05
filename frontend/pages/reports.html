@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Reports — SugarCast</title>
+ <link rel="stylesheet" href="../assets/css/main.css">
+ <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+ <style>
+ /* Typography */
+ /* Report page uses shared dashboard typography from main.css */
+
+ /* Report header banner */
+ .report-banner {
+ background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0f766e 100%);
+ border-radius: 18px;
+ padding: 28px 32px;
+ color: white;
+ margin-bottom: 24px;
+ position: relative;
+ overflow: hidden;
+ }
+ .report-banner::before {
+ content: '';
+ position: absolute;
+ top: -80px; right: -80px;
+ width: 240px; height: 240px;
+ background: radial-gradient(rgba(249,115,22,0.25), transparent);
+ border-radius: 50%;
+ }
+ .report-banner::after {
+ content: '';
+ position: absolute;
+ bottom: -60px; left: 30%;
+ width: 180px; height: 180px;
+ background: radial-gradient(rgba(16,185,129,0.2), transparent);
+ border-radius: 50%;
+ }
+ .banner-kpis {
+ display: grid;
+ grid-template-columns: repeat(4, 1fr);
+ gap: 20px;
+ margin-top: 20px;
+ position: relative;
+ z-index: 1;
+ }
+ .banner-kpi-val {
+ font-size: 1.7rem;
+ font-weight: 800;
+ color: #fde68a;
+ line-height: 1;
+ }
+ .banner-kpi-lbl {
+ font-size: 0.72rem;
+ opacity: 0.65;
+ text-transform: uppercase;
+ letter-spacing: .6px;
+ margin-top: 5px;
+ }
+ .banner-kpi-chg {
+ font-size: 0.75rem;
+ font-weight: 600;
+ color: #86efac;
+ margin-top: 3px;
+ }
+
+ /* Filter bar */
+ .filter-bar {
+ background: var(--bg-surface);
+ border: 1px solid var(--border);
+ border-radius: 14px;
+ padding: 16px 20px;
+ display: flex;
+ align-items: center;
+ gap: 12px;
+ flex-wrap: wrap;
+ margin-bottom: 24px;
+ }
+ .filter-bar .form-control {
+ padding: 8px 12px;
+ border-radius: 10px;
+ min-width: 0;
+ }
+ .view-toggle {
+ display: flex;
+ gap: 0;
+ background: var(--bg-elevated);
+ border-radius: 10px;
+ padding: 3px;
+ }
+ .view-toggle .btn {
+ border-radius: 8px;
+ padding: 6px 16px;
+ font-size: 0.8rem;
+ }
+
+ /* Charts */
+ .charts-row {
+ display: grid;
+ grid-template-columns: 2fr 1fr;
+ gap: 20px;
+ margin-bottom: 24px;
+ }
+ @media (max-width: 900px) {
+ .charts-row { grid-template-columns: 1fr; }
+ .banner-kpis { grid-template-columns: repeat(2, 1fr); }
+ }
+ @media (max-width: 560px) {
+ .banner-kpis { grid-template-columns: 1fr 1fr; gap:12px; }
+ .report-banner { padding: 20px; }
+ .banner-kpi-val { font-size: 1.3rem; }
+ .filter-bar { gap: 8px; }
+ }
+
+ /* Highlighted rows */
+ tr.peak-row { background: rgba(249,115,22,0.04); }
+ tr.peak-row td { font-weight: 600; }
+
+ /* Season dots */
+ .season-dot {
+ display: inline-block;
+ width: 8px; height: 8px;
+ border-radius: 50%;
+ margin-right: 5px;
+ }
+
+ /* Monthly table responsive */
+ .reports-table-wrap { overflow-x: auto; }
+ @media (max-width: 768px) {
+ .reports-table-wrap table { font-size: 0.78rem; }
+ .reports-table-wrap th, .reports-table-wrap td { padding: 8px 10px; }
+ .hide-mobile { display: none !important; }
+ }
+
+ /* Growth pill */
+ .growth-pill {
+ display: inline-flex;
+ align-items: center;
+ gap: 3px;
+ padding: 2px 8px;
+ border-radius: 999px;
+ font-size: 0.72rem;
+ font-weight: 700;
+ }
+ .growth-up { background: #f0fdf4; color: #15803d; }
+ .growth-down { background: #fef2f2; color: #b91c1c; }
+ </style>
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject(I18n.t('reports_title'), I18n.t('reports_subtitle'));
+
+// Live report data — populated from reports.php (see loadYears/loadSummary/
+// loadMonthly/loadYearly below). Starts empty; the page renders real rows
+// once the first fetch resolves.
+let MONTHLY = [];
+let YEARLY = [];
+
+const seasonColors = { dry:'#f97316', wet:'#3b82f6', harvest:'#10b981', planting:'#f59e0b' };
+const seasonIcons = { dry:'Dry', wet:'Wet', harvest:'Harvest', planting:'Planting' };
+
+document.getElementById('main-content').innerHTML = `
+ <!-- Page header -->
+ <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+ <div>
+ <h1 class="page-title" data-i18n="reports_title">Reports & Analytics</h1>
+ <p class="page-subtitle" data-i18n="reports_subtitle">Monthly and yearly demand summaries · Mbeya Central Market</p>
+ </div>
+ <div style="display:flex;gap:10px;flex-wrap:wrap">
+ <button class="btn btn-secondary" id="export-csv-btn" data-i18n="reports_export_csv"> Export CSV</button>
+ <button class="btn btn-primary" id="export-pdf-btn" data-i18n="reports_print_pdf"> Print PDF</button>
+ </div>
+ </div>
+
+ <!-- Summary Banner -->
+ <div class="report-banner">
+ <div style="position:relative;z-index:1">
+ <div style="font-size:0.7rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.6;margin-bottom:6px" id="banner-window-label">12-Month Performance Summary</div>
+ <div class="report-banner-heading">Mbeya Sugar Market Management</div>
+ </div>
+ <div class="banner-kpis">
+ <div>
+ <div class="banner-kpi-val" id="kpi-sales">—</div>
+ <div class="banner-kpi-lbl" data-i18n="reports_kpi_sales">Total Sales (kg)</div>
+ <div class="banner-kpi-chg" id="kpi-sales-chg">—</div>
+ </div>
+ <div>
+ <div class="banner-kpi-val" id="kpi-revenue">—</div>
+ <div class="banner-kpi-lbl" data-i18n="reports_kpi_revenue">Total Revenue</div>
+ <div class="banner-kpi-chg" id="kpi-revenue-chg">—</div>
+ </div>
+ <div>
+ <div class="banner-kpi-val" id="kpi-price">—</div>
+ <div class="banner-kpi-lbl" data-i18n="reports_kpi_price">Avg Price / kg</div>
+ <div class="banner-kpi-chg" id="kpi-price-chg">—</div>
+ </div>
+ <div>
+ <div class="banner-kpi-val" id="kpi-peak">—</div>
+ <div class="banner-kpi-lbl" data-i18n="reports_kpi_peak">Peak Month (kg)</div>
+ <div class="banner-kpi-chg" id="kpi-peak-chg">—</div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Filters -->
+ <div class="filter-bar">
+ <div class="view-toggle">
+ <button class="btn btn-primary btn-sm" id="btn-monthly" onclick="switchView('monthly')" data-i18n="reports_monthly"> Monthly</button>
+ <button class="btn btn-secondary btn-sm" id="btn-yearly" onclick="switchView('yearly')" data-i18n="reports_yearly">Yearly</button>
+ </div>
+ <select class="form-control" id="year-sel" style="width:130px">
+ <option value="all" data-i18n="reports_all_years">All Years</option>
+ </select>
+ <input type="date" class="form-control" id="from-date" style="width:148px">
+ <span style="color:var(--text-muted);font-size:.85rem">→</span>
+ <input type="date" class="form-control" id="to-date" style="width:148px">
+ <button class="btn btn-secondary btn-sm" id="refresh-btn" data-i18n="reports_refresh"> Refresh</button>
+ </div>
+
+ <!-- Charts -->
+ <div class="section-heading" data-i18n="reports_trend_analysis"> Trend Analysis</div>
+ <div class="charts-row">
+ <div class="card">
+ <div class="card-header">
+ <span class="card-title" id="main-chart-title">Monthly Sales & Revenue Trend</span>
+ <div style="display:flex;gap:6px">
+ <span class="badge badge-orange">Sales</span>
+ <span class="badge badge-success">Revenue</span>
+ </div>
+ </div>
+ <div class="card-body">
+ <div class="chart-wrapper" style="height:280px">
+ <canvas id="main-report-chart"></canvas>
+ </div>
+ </div>
+ </div>
+ <div class="card">
+ <div class="card-header">
+ <span class="card-title">Year-over-Year</span>
+ </div>
+ <div class="card-body">
+ <div class="chart-wrapper" style="height:280px">
+ <canvas id="yoy-chart"></canvas>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Monthly Table -->
+ <div id="monthly-section">
+ <div class="section-heading" data-i18n="reports_monthly_breakdown">Monthly Breakdown</div>
+ <div class="card mb-4">
+ <div class="reports-table-wrap">
+ <table>
+ <thead>
+ <tr>
+ <th data-i18n="table_month">Month</th>
+ <th data-i18n="table_sales">Sales (kg)</th>
+ <th class="hide-mobile" data-i18n="table_revenue">Revenue (Tsh)</th>
+ <th class="hide-mobile" data-i18n="table_avg_price">Avg Price/kg</th>
+ <th data-i18n="table_season">Season</th>
+ <th data-i18n="table_vs_prev">vs Prev</th>
+ <th class="hide-mobile" data-i18n="table_share">Share</th>
+ </tr>
+ </thead>
+ <tbody id="monthly-tbody"></tbody>
+ <tfoot>
+ <tr style="background:var(--bg-elevated);font-weight:700">
+ <td data-i18n="reports_total_avg">TOTAL / AVG</td>
+ <td class="font-mono" id="monthly-total-sales">—</td>
+ <td class="font-mono hide-mobile" id="monthly-total-revenue">—</td>
+ <td class="font-mono hide-mobile" id="monthly-avg-price">—</td>
+ <td>—</td>
+ <td>—</td>
+ <td class="hide-mobile">100%</td>
+ </tr>
+ </tfoot>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- Yearly Table -->
+ <div id="yearly-section" style="display:none">
+ <div class="section-heading" data-i18n="reports_yearly_summary"> Yearly Summary</div>
+ <div class="card mb-4">
+ <div class="reports-table-wrap">
+ <table>
+ <thead>
+ <tr>
+ <th>Year</th>
+ <th>Total Sales (kg)</th>
+ <th class="hide-mobile">Revenue (Tsh)</th>
+ <th class="hide-mobile">Avg Price/kg</th>
+ <th>Peak Month</th>
+ <th class="hide-mobile">Peak Sales</th>
+ <th>YoY Growth</th>
+ </tr>
+ </thead>
+ <tbody id="yearly-tbody"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+`;
+
+// ── Render Monthly ────────────────────────────────────────
+function renderMonthly() {
+ const tbody = document.getElementById('monthly-tbody');
+ if (!MONTHLY.length) {
+ tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">${I18n.t('reports_no_data')}</td></tr>`;
+ document.getElementById('monthly-total-sales').textContent = '—';
+ document.getElementById('monthly-total-revenue').textContent = '—';
+ document.getElementById('monthly-avg-price').textContent = '—';
+ return;
+ }
+
+ const totalSales = MONTHLY.reduce((s,r) => s+r.total_sales, 0);
+ const totalRevenue = MONTHLY.reduce((s,r) => s+r.total_revenue, 0);
+ const avgPrice = MONTHLY.reduce((s,r) => s+r.avg_price, 0) / MONTHLY.length;
+
+ tbody.innerHTML = MONTHLY.map((r,i) => {
+ const prev = i > 0 ? MONTHLY[i-1].total_sales : null;
+ const change = prev ? ((r.total_sales-prev)/prev*100) : null;
+ const chgHtml = change !== null
+ ? `<span class="growth-pill ${change>=0?'growth-up':'growth-down'}">${change>=0?'▲':'▼'} ${Math.abs(change).toFixed(1)}%</span>`
+ : '<span class="text-muted">—</span>';
+ const share = totalSales ? (r.total_sales/totalSales*100).toFixed(1) : '0.0';
+ const scDot = `<span class="season-dot" style="background:${seasonColors[r.season]}"></span>`;
+ return `<tr ${r.peak?'class="peak-row"':''}>
+ <td>
+ <strong>${r.label}</strong>
+ ${r.peak ? `<span class="badge badge-orange" style="margin-left:6px;font-size:0.65rem">${I18n.t('reports_peak_badge')}</span>` : ''}
+ </td>
+ <td class="font-mono">${App.fmtNum(r.total_sales)}</td>
+ <td class="font-mono hide-mobile" style="color:var(--success)">${App.fmtCurrency(r.total_revenue)}</td>
+ <td class="font-mono hide-mobile">${App.fmtCurrency(r.avg_price)}</td>
+ <td>${scDot}${seasonIcons[r.season]} <span class="text-xs">${r.season}</span></td>
+ <td>${chgHtml}</td>
+ <td class="hide-mobile">
+ <div style="display:flex;align-items:center;gap:6px">
+ <div class="progress-bar" style="width:52px"><div class="progress-fill" style="width:${Math.min(100,parseFloat(share)*3.5)}%"></div></div>
+ <span class="text-xs text-muted">${share}%</span>
+ </div>
+ </td>
+ </tr>`;
+ }).join('');
+
+ document.getElementById('monthly-total-sales').textContent = App.fmtNum(totalSales) + ' kg';
+ document.getElementById('monthly-total-revenue').textContent = App.fmtCurrency(totalRevenue);
+ document.getElementById('monthly-avg-price').textContent = App.fmtCurrency(avgPrice);
+}
+
+// ── Render Yearly ─────────────────────────────────────────
+function renderYearly() {
+ const tbody = document.getElementById('yearly-tbody');
+ if (!YEARLY.length) {
+ tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">${I18n.t('reports_no_data')}</td></tr>`;
+ return;
+ }
+ tbody.innerHTML = YEARLY.map((r,i) => {
+ const prev = i > 0 ? YEARLY[i-1].total_sales : null;
+ const growth = prev ? ((r.total_sales-prev)/prev*100) : null;
+ const gHtml = growth !== null
+ ? `<span class="growth-pill ${growth>=0?'growth-up':'growth-down'}">${growth>=0?'▲':'▼'} ${Math.abs(growth).toFixed(1)}%</span>`
+ : '<span class="text-muted">—</span>';
+ return `<tr>
+ <td><strong>${r.year}</strong></td>
+ <td class="font-mono">${App.fmtNum(r.total_sales)}</td>
+ <td class="font-mono hide-mobile" style="color:var(--success)">${App.fmtCurrency(r.total_revenue)}</td>
+ <td class="font-mono hide-mobile">${App.fmtCurrency(r.avg_price)}</td>
+ <td>${r.peak_month || '—'}</td>
+ <td class="font-mono hide-mobile">${r.peak_qty ? App.fmtNum(r.peak_qty) : '—'}</td>
+ <td>${gHtml}</td>
+ </tr>`;
+ }).join('');
+}
+
+// ── Render Banner KPIs ─────────────────────────────────────
+function renderSummary(s) {
+ if (!s || s.has_data === false) {
+ document.getElementById('banner-window-label').textContent = I18n.t('reports_no_data');
+ ['kpi-sales','kpi-revenue','kpi-price','kpi-peak'].forEach(id => document.getElementById(id).textContent = '—');
+ ['kpi-sales-chg','kpi-revenue-chg','kpi-price-chg','kpi-peak-chg'].forEach(id => document.getElementById(id).textContent = '—');
+ return;
+ }
+
+ const chgHtml = (pct, suffix) => {
+ if (pct === null || pct === undefined) return '<span style="opacity:.6">—</span>';
+ const up = pct >= 0;
+ return `${up?'▲':'▼'} ${Math.abs(pct).toFixed(1)}% ${suffix}`;
+ };
+
+ document.getElementById('banner-window-label').textContent = `${I18n.t('reports_banner_title')} · ${s.window_label}`;
+ document.getElementById('kpi-sales').textContent = App.fmtNum(s.total_sales);
+ document.getElementById('kpi-sales-chg').textContent = '';
+ document.getElementById('kpi-sales-chg').innerHTML = chgHtml(s.sales_growth_pct, I18n.t('reports_yoy_growth'));
+
+ document.getElementById('kpi-revenue').textContent = App.fmtCurrency(s.total_revenue);
+ document.getElementById('kpi-revenue-chg').innerHTML = chgHtml(s.revenue_growth_pct, I18n.t('reports_yoy_growth'));
+
+ document.getElementById('kpi-price').textContent = App.fmtCurrency(s.avg_price);
+ document.getElementById('kpi-price-chg').innerHTML = chgHtml(s.price_growth_pct, I18n.t('reports_price_change'));
+
+ document.getElementById('kpi-peak').textContent = s.peak_qty ? App.fmtNum(s.peak_qty) : '—';
+ document.getElementById('kpi-peak-chg').textContent = s.peak_label || '—';
+}
+
+// ── Charts ────────────────────────────────────────────────
+let mainChart = null, yoyChart = null;
+
+function initCharts() {
+ if (mainChart) mainChart.destroy();
+ if (yoyChart) yoyChart.destroy();
+
+ const mainCtx = document.getElementById('main-report-chart');
+ const yoyCtx  = document.getElementById('yoy-chart');
+ if (!mainCtx || !yoyCtx) return;
+
+ const ctx = mainCtx.getContext('2d');
+ const grad = ctx.createLinearGradient(0,0,0,280);
+ grad.addColorStop(0,'rgba(249,115,22,0.2)');
+ grad.addColorStop(1,'rgba(249,115,22,0)');
+
+ mainChart = new Chart(ctx, {
+ type: 'line',
+ data: {
+ labels: MONTHLY.map(r => r.label),
+ datasets: [
+ {
+ label: 'Sales (kg)',
+ data: MONTHLY.map(r=>r.total_sales),
+ borderColor:'#f97316', backgroundColor:grad,
+ borderWidth:2.5, pointRadius:4, pointHoverRadius:7,
+ fill:true, tension:0.4, yAxisID:'y',
+ },
+ {
+ label: 'Revenue (Tsh)',
+ data: MONTHLY.map(r=>r.total_revenue),
+ borderColor:'#10b981', backgroundColor:'transparent',
+ borderWidth:2, pointRadius:3, pointHoverRadius:6,
+ fill:false, tension:0.4, yAxisID:'y1',
+ }
+ ]
+ },
+ options: {
+ responsive:true, maintainAspectRatio:false,
+ interaction:{ mode:'index', intersect:false },
+ plugins:{ legend:{ position:'top', align:'end', labels:{ boxWidth:10, padding:12 } } },
+ scales: {
+ x:{ grid:{ display:false } },
+ y:{ ticks:{ callback:v=>App.fmtNum(v)+' kg' }, grid:{ color:'rgba(0,0,0,0.04)' } },
+ y1:{ position:'right', ticks:{ callback:v=>'Tsh '+App.fmtNum(v) }, grid:{ display:false } }
+ }
+ }
+ });
+
+ yoyChart = new Chart(yoyCtx, {
+ type: 'bar',
+ data: {
+ labels: YEARLY.map(r=>r.year),
+ datasets: [{
+ label:'Sales (kg)',
+ data: YEARLY.map(r=>r.total_sales),
+ backgroundColor: YEARLY.map((r,i) => i === YEARLY.length-1 ? 'rgba(249,115,22,.8)' : 'rgba(148,163,184,.6)'),
+ borderRadius:7, borderSkipped:false,
+ }]
+ },
+ options: {
+ responsive:true, maintainAspectRatio:false,
+ plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:ctx=>` ${App.fmtNum(ctx.parsed.y)} kg` } } },
+ scales:{
+ x:{ grid:{ display:false } },
+ y:{ ticks:{ callback:v=>App.fmtNum(v) } }
+ }
+ }
+ });
+}
+
+// ── Data loading ────────────────────────────────────────────
+let selectedYear = 'all';
+
+async function loadYears() {
+ const res = await App.api(App.BASE_URL + 'reports.php', { action: 'years' }, 'GET');
+ const sel = document.getElementById('year-sel');
+ const years = res.success ? res.data : [];
+ years.forEach(y => {
+ const opt = document.createElement('option');
+ opt.value = y; opt.textContent = y;
+ sel.appendChild(opt);
+ });
+ // Default to the most recent year on record rather than a hardcoded one.
+ selectedYear = years.length ? String(years[0]) : 'all';
+ sel.value = selectedYear;
+}
+
+async function loadSummary() {
+ const res = await App.api(App.BASE_URL + 'reports.php', { action: 'summary' }, 'GET');
+ renderSummary(res.success ? res : null);
+}
+
+async function loadMonthly() {
+ const res = await App.api(App.BASE_URL + 'reports.php', { action: 'monthly', year: selectedYear }, 'GET');
+ MONTHLY = res.success ? res.data.map(r => ({
+ ...r,
+ total_sales: parseFloat(r.total_sales),
+ total_revenue: parseFloat(r.total_revenue),
+ avg_price: parseFloat(r.avg_price),
+ })) : [];
+ applyDateFilter();
+ renderMonthly();
+}
+
+async function loadYearly() {
+ const res = await App.api(App.BASE_URL + 'reports.php', { action: 'yearly' }, 'GET');
+ YEARLY = res.success ? res.data.map(r => ({
+ ...r,
+ total_sales: parseFloat(r.total_sales),
+ total_revenue: parseFloat(r.total_revenue),
+ avg_price: parseFloat(r.avg_price),
+ })) : [];
+ renderYearly();
+}
+
+// Client-side date-range trim — the from/to pickers narrow the already
+// year-scoped monthly rows down to a specific window without another round trip.
+function applyDateFilter() {
+ const from = document.getElementById('from-date').value;
+ const to = document.getElementById('to-date').value;
+ if (!from && !to) return;
+ MONTHLY = MONTHLY.filter(r => {
+ const periodStart = r.period + '-01';
+ return (!from || periodStart >= from) && (!to || periodStart <= to);
+ });
+}
+
+async function refreshAll() {
+ App.showLoading();
+ await Promise.all([loadSummary(), loadMonthly(), loadYearly()]);
+ setTimeout(initCharts, 50);
+ App.hideLoading();
+}
+
+// ── View Toggle ───────────────────────────────────────────
+let currentView = 'monthly';
+window.switchView = (view) => {
+ currentView = view;
+ document.getElementById('btn-monthly').className = view==='monthly'?'btn btn-primary btn-sm':'btn btn-secondary btn-sm';
+ document.getElementById('btn-yearly').className = view==='yearly' ?'btn btn-primary btn-sm':'btn btn-secondary btn-sm';
+ document.getElementById('monthly-section').style.display = view==='monthly'?'block':'none';
+ document.getElementById('yearly-section').style.display = view==='yearly' ?'block':'none';
+};
+
+// ── Filter wiring ───────────────────────────────────────────
+document.getElementById('year-sel').addEventListener('change', async (e) => {
+ selectedYear = e.target.value;
+ App.showLoading();
+ await loadMonthly();
+ setTimeout(initCharts, 50);
+ App.hideLoading();
+});
+
+document.getElementById('refresh-btn').addEventListener('click', async () => {
+ await refreshAll();
+ App.toast(I18n.t('reports_refresh_done'), 'success');
+});
+
+// ── Export ────────────────────────────────────────────────
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+ if (!MONTHLY.length) { App.toast(I18n.t('reports_no_data'), 'error'); return; }
+ const headers = ['Month','Sales_kg','Revenue_Tsh','Avg_Price','Season'];
+ const rows = MONTHLY.map(r=>[r.label,r.total_sales,r.total_revenue,r.avg_price.toFixed(2),r.season]);
+ const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+ const link = document.createElement('a');
+ link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+ link.download = 'sugarcast_report_' + new Date().toISOString().split('T')[0] + '.csv';
+ link.click();
+ App.toast(I18n.t('reports_csv_exported'),'success');
+});
+
+document.getElementById('export-pdf-btn').addEventListener('click', () => {
+ App.toast(I18n.t('reports_opening_print'),'info');
+ setTimeout(() => window.print(), 500);
+});
+
+// ── Initial load ─────────────────────────────────────────────
+(async function init() {
+ App.showLoading();
+ await loadYears();
+ await Promise.all([loadSummary(), loadMonthly(), loadYearly()]);
+ setTimeout(initCharts, 100);
+ App.hideLoading();
+})();
+
+// Listen for language changes and re-render reports
+window.addEventListener('i18n:changed', () => {
+  renderMonthly();
+  renderYearly();
+  loadSummary();
+  setTimeout(initCharts, 100);
+  I18n.init();
+});
+</script>
+</body>
+</html>

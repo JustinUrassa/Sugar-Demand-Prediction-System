@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Management — SugarCast</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject(I18n.t('users_title'), I18n.t('users_subtitle'));
+
+const currentUser = JSON.parse(localStorage.getItem('sc_user') || '{}');
+
+// Admin guard
+if (currentUser.role !== 'admin') {
+  document.getElementById('main-content').innerHTML = `
+    <div style="text-align:center;padding:80px 20px">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.2" style="margin-bottom:16px">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <h2 style="color:var(--text-secondary);margin-bottom:8px">${I18n.t('access_restricted')}</h2>
+      <p class="text-muted">${I18n.t('access_only_admins')}</p>
+      <a href="dashboard.html" class="btn btn-primary" style="margin-top:16px;display:inline-block">${I18n.t('users_back_dashboard')}</a>
+    </div>`;
+  throw new Error('Access denied');
+}
+
+// ── SVG icons used inline ───────────────────────────────────
+const SVG = {
+  edit:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  lock:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  unlock: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 1 1 9.9-1"/></svg>`,
+  key:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`,
+  trash:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  plus:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  search: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  close:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  refresh:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`,
+};
+
+// ── State ───────────────────────────────────────────────────
+let users      = [];
+let editUserId = null;
+let pollTimer  = null;
+let isLoading  = false;
+
+// ── Build page shell ────────────────────────────────────────
+document.getElementById('main-content').innerHTML = `
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 class="page-title" data-i18n="users_title">User Management</h1>
+      <p class="page-subtitle" data-i18n="users_subtitle">All changes sync directly with the database in real time</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span id="sync-indicator" style="font-size:0.75rem;color:var(--text-muted);display:flex;align-items:center;gap:5px">
+        <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block"></span>
+        <span id="sync-text">${I18n.t('users_synced')}</span>
+      </span>
+      <button class="btn btn-secondary btn-sm" id="refresh-btn" onclick="hardRefresh()">
+        ${SVG.refresh} ${I18n.t('users_refresh')}
+      </button>
+      <button class="btn btn-primary" onclick="openAddModal()">
+        ${SVG.plus} ${I18n.t('users_add_user')}
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="stat-card orange">
+      <div class="stat-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Total Users</div>
+    </div>
+    <div class="stat-card" style="border-top-color:#7c3aed">
+      <div class="stat-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="stat-value" id="stat-admin">—</div>
+      <div class="stat-label">Admins</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="stat-value" id="stat-trader">—</div>
+      <div class="stat-label">Traders</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div class="stat-value" id="stat-supplier">—</div>
+      <div class="stat-label">Suppliers</div>
+    </div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">All Users</span>
+      <div class="search-bar">
+        ${SVG.search}
+        <input type="text" id="user-search" data-i18n-placeholder="users_search_placeholder" placeholder="Search by name, email, role...">
+      </div>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>User</th><th>Email</th><th>Role</th>
+            <th>Status</th><th>Last Login</th><th>Joined</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody">
+          <tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text-muted)">
+            ${I18n.t('users_loading')}
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add / Edit Modal -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">Add New User</h3>
+        <button class="modal-close" onclick="App.closeModal('user-modal')">${SVG.close}</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-error" style="display:none;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:0.84rem;margin-bottom:14px"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" class="form-control" id="uf-fullname" placeholder="e.g. John Mwenda">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username *</label>
+            <input type="text" class="form-control" id="uf-username" placeholder="e.g. jmwenda">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address *</label>
+          <input type="email" class="form-control" id="uf-email" placeholder="user@mbeya-sugar.co.tz">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Role *</label>
+            <select class="form-control" id="uf-role">
+              <option value="trader">Trader</option>
+              <option value="supplier">Supplier</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group" id="status-group">
+            <label class="form-label">Status</label>
+            <select class="form-control" id="uf-status">
+              <option value="1">Active</option>
+              <option value="0">Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" id="pwd-label">Password *</label>
+          <input type="password" class="form-control" id="uf-password" placeholder="Minimum 8 characters" autocomplete="new-password">
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px" id="pwd-hint">Minimum 8 characters</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="App.closeModal('user-modal')">Cancel</button>
+        <button class="btn btn-primary" id="save-btn" onclick="saveUser()">Save User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Permissions -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-header"><span class="card-title">Role Permissions</span></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+        ${[
+          { role:'Admin',    color:'#7c3aed', perms:['Full system access','Manage all users','View all reports','Configure system','Export all data'] },
+          { role:'Trader',   color:'#3b82f6', perms:['View dashboard','Add sales records','Run demand analysis','View recommendations','View own reports'] },
+          { role:'Supplier', color:'#10b981', perms:['View dashboard','View recommendations','View stock alerts','View demand analysis','View reports'] },
+        ].map(r => `
+          <div style="padding:18px;border:1px solid var(--border);border-radius:var(--radius-lg);border-top:3px solid ${r.color}">
+            <div style="font-weight:700;font-size:0.88rem;margin-bottom:12px;color:${r.color}">${r.role}</div>
+            ${r.perms.map(p => `
+              <div style="font-size:0.8rem;color:var(--text-secondary);padding:4px 0;border-bottom:1px solid var(--divider);display:flex;align-items:center;gap:7px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${r.color}" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>${p}
+              </div>`).join('')}
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>
+`;
+
+// ── Sync indicator helpers ─────────────────────────────────
+function setSynced()  {
+  document.getElementById('sync-dot').style.background  = '#10b981';
+  document.getElementById('sync-text').textContent       = I18n.t('users_synced');
+  document.getElementById('sync-text').style.color       = 'var(--text-muted)';
+}
+function setSyncing() {
+  document.getElementById('sync-dot').style.background  = '#f59e0b';
+  document.getElementById('sync-text').textContent       = I18n.t('users_syncing');
+}
+function setSyncError() {
+  document.getElementById('sync-dot').style.background  = '#ef4444';
+  document.getElementById('sync-text').textContent       = I18n.t('users_sync_error');
+  document.getElementById('sync-text').style.color       = '#ef4444';
+}
+
+// ── Load users from database ────────────────────────────────
+async function loadUsers(silent = false) {
+  if (isLoading) return;
+  isLoading = true;
+  if (!silent) setSyncing();
+
+  const res = await App.api(App.BASE_URL + 'users.php', { action: 'list' }, 'GET');
+  isLoading = false;
+
+  if (!res.success) {
+    setSyncError();
+    if (!silent) {
+      document.getElementById('users-tbody').innerHTML =
+        `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--error)">
+          Failed to load from database: ${res.message || 'Server error'}
+          <br><button class="btn btn-sm btn-secondary" onclick="hardRefresh()" style="margin-top:8px">Try again</button>
+        </td></tr>`;
+    }
+    return;
+  }
+
+  // Detect changes (compare IDs) — only re-render if something changed
+  const incoming = JSON.stringify(res.data.map(u => u.id + u.is_active + u.full_name + u.email + u.role));
+  const existing = JSON.stringify(users.map(u => u.id + u.is_active + u.full_name + u.email + u.role));
+
+  if (incoming !== existing || !silent) {
+    users = res.data;
+    renderUsers();
+  }
+
+  setSynced();
+}
+
+// ── Hard refresh (manual, always re-renders) ────────────────
+window.hardRefresh = async () => {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  setSyncing();
+  const res = await App.api(App.BASE_URL + 'users.php', { action: 'list' }, 'GET');
+  btn.disabled = false;
+  if (res.success) {
+    users = res.data;
+    renderUsers();
+    setSynced();
+    App.toast('Users refreshed from database.', 'success');
+  } else {
+    setSyncError();
+    App.toast('Refresh failed: ' + (res.message || 'Server error'), 'error');
+  }
+};
+
+// ── Render table ────────────────────────────────────────────
+function renderUsers() {
+  const search   = (document.getElementById('user-search')?.value || '').toLowerCase();
+  const filtered = search
+    ? users.filter(u => [u.username, u.full_name, u.email, u.role].join(' ').toLowerCase().includes(search))
+    : users;
+
+  const roleColors = { admin:'#7c3aed', trader:'#3b82f6', supplier:'#10b981' };
+
+  if (!filtered.length) {
+    document.getElementById('users-tbody').innerHTML =
+      `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">${search ? 'No users match your search.' : 'No users in the database yet.'}</td></tr>`;
+  } else {
+    document.getElementById('users-tbody').innerHTML = filtered.map(u => {
+      const rc = roleColors[u.role] || '#64748b';
+      const initials = (u.full_name || u.username).split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      return `
+        <tr id="row-${u.id}">
+          <td class="font-mono text-muted" style="font-size:0.8rem">${u.id}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:34px;height:34px;border-radius:50%;background:${rc};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.78rem;color:#fff;flex-shrink:0">${initials}</div>
+              <div>
+                <div style="font-weight:600;font-size:0.875rem">${u.full_name}</div>
+                <div style="font-size:0.73rem;color:var(--text-muted)">@${u.username}</div>
+              </div>
+            </div>
+          </td>
+          <td style="color:var(--text-secondary);font-size:0.85rem">${u.email}</td>
+          <td><span class="badge" style="background:${rc}20;color:${rc};text-transform:capitalize">${u.role}</span></td>
+          <td>
+            <span class="badge ${u.is_active ? 'badge-success' : 'badge-danger'}">
+              ${u.is_active ? 'Active' : 'Inactive'}
+            </span>
+          </td>
+          <td style="color:var(--text-secondary);font-size:0.82rem">${u.last_login ? u.last_login.split(' ')[0] : '—'}</td>
+          <td style="color:var(--text-secondary);font-size:0.82rem">${App.fmtDate(u.created_at)}</td>
+          <td>
+            <div style="display:flex;gap:6px;flex-wrap:nowrap">
+              <button class="btn btn-sm btn-secondary btn-icon" onclick="editUser(${u.id})" title="Edit user">${SVG.edit}</button>
+              <button class="btn btn-sm btn-secondary btn-icon" onclick="toggleStatus(${u.id})" title="${u.is_active ? 'Deactivate' : 'Activate'} user">
+                ${u.is_active ? SVG.lock : SVG.unlock}
+              </button>
+              <button class="btn btn-sm btn-secondary btn-icon" onclick="resetPassword(${u.id})" title="Reset password">${SVG.key}</button>
+              ${u.username !== currentUser.username
+                ? `<button class="btn btn-sm btn-danger btn-icon" onclick="deleteUser(${u.id})" title="Delete user">${SVG.trash}</button>`
+                : '<span style="width:29px"></span>'}
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  // Update stats
+  document.getElementById('stat-total').textContent    = users.length;
+  document.getElementById('stat-admin').textContent    = users.filter(u => u.role === 'admin').length;
+  document.getElementById('stat-trader').textContent   = users.filter(u => u.role === 'trader').length;
+  document.getElementById('stat-supplier').textContent = users.filter(u => u.role === 'supplier').length;
+}
+
+// ── Modal helpers ───────────────────────────────────────────
+function showModalError(msg) {
+  const el = document.getElementById('modal-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearModalError() {
+  document.getElementById('modal-error').style.display = 'none';
+}
+
+// ── Add modal ───────────────────────────────────────────────
+window.openAddModal = () => {
+  editUserId = null;
+  document.getElementById('modal-title').textContent     = I18n.t('users_add_new_user');
+  document.getElementById('uf-fullname').value           = '';
+  document.getElementById('uf-username').value           = '';
+  document.getElementById('uf-username').disabled        = false;
+  document.getElementById('uf-email').value              = '';
+  document.getElementById('uf-role').value               = 'trader';
+  document.getElementById('uf-status').value             = '1';
+  document.getElementById('uf-password').value           = '';
+  document.getElementById('uf-password').placeholder     = I18n.t('users_password_hint');
+  document.getElementById('pwd-label').textContent       = I18n.t('users_password_label');
+  document.getElementById('pwd-hint').textContent        = I18n.t('users_password_hint');
+  document.getElementById('status-group').style.display  = 'none'; // status not relevant on create
+  document.getElementById('save-btn').textContent        = I18n.t('users_create_user');
+  clearModalError();
+  App.openModal('user-modal');
+  setTimeout(() => document.getElementById('uf-fullname').focus(), 100);
+};
+
+// ── Edit modal ──────────────────────────────────────────────
+window.editUser = (id) => {
+  const u = users.find(u => u.id === id);
+  if (!u) return;
+  editUserId = id;
+  document.getElementById('modal-title').textContent     = I18n.t('users_edit_user');
+  document.getElementById('uf-fullname').value           = u.full_name;
+  document.getElementById('uf-username').value           = u.username;
+  document.getElementById('uf-username').disabled        = true; // username is immutable
+  document.getElementById('uf-email').value              = u.email;
+  document.getElementById('uf-role').value               = u.role;
+  document.getElementById('uf-status').value             = String(u.is_active);
+  document.getElementById('uf-password').value           = '';
+  document.getElementById('uf-password').placeholder     = I18n.t('leave_blank_keep_pwd');
+  document.getElementById('pwd-label').textContent       = I18n.t('new_password_optional');
+  document.getElementById('pwd-hint').textContent        = I18n.t('only_fill_to_change_pwd');
+  document.getElementById('status-group').style.display  = '';
+  document.getElementById('save-btn').textContent        = I18n.t('users_save_user');
+  clearModalError();
+  App.openModal('user-modal');
+  setTimeout(() => document.getElementById('uf-fullname').focus(), 100);
+};
+
+// ── Save (create or update) ─────────────────────────────────
+window.saveUser = async () => {
+  clearModalError();
+  const fullName = document.getElementById('uf-fullname').value.trim();
+  const username = document.getElementById('uf-username').value.trim();
+  const email    = document.getElementById('uf-email').value.trim();
+  const role     = document.getElementById('uf-role').value;
+  const isActive = parseInt(document.getElementById('uf-status').value);
+  const password = document.getElementById('uf-password').value;
+
+  // Client-side validation
+  if (!fullName) { showModalError(I18n.t('users_fullname_required')); document.getElementById('uf-fullname').focus(); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showModalError(I18n.t('users_valid_email_required')); document.getElementById('uf-email').focus(); return; }
+  if (!editUserId && !username) { showModalError(I18n.t('users_username_required')); document.getElementById('uf-username').focus(); return; }
+  if (!editUserId && password.length < 8) { showModalError(I18n.t('users_password_required')); document.getElementById('uf-password').focus(); return; }
+  if (editUserId && password && password.length < 8) { showModalError(I18n.t('users_password_required')); document.getElementById('uf-password').focus(); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = I18n.t('saving_ellipsis');
+  setSyncing();
+
+  let payload, res;
+
+  if (editUserId) {
+    payload = { action:'update', id:editUserId, email, full_name:fullName, role, is_active:isActive };
+    if (password) payload.new_password = password; // optional password change
+    res = await App.api(App.BASE_URL + 'users.php', payload, 'POST');
+  } else {
+    payload = { action:'add', username, email, password, full_name:fullName, role };
+    res = await App.api(App.BASE_URL + 'users.php', payload, 'POST');
+  }
+
+  btn.disabled = false;
+  btn.textContent = editUserId ? I18n.t('users_save_user') : I18n.t('users_create_user');
+
+  if (!res.success) {
+    setSyncError();
+    showModalError(res.message || I18n.t('users_refresh_failed').replace('{msg}', res.message || 'Server error'));
+    return;
+  }
+
+  // ── Sync UI with what the database returned ──────────────
+  if (editUserId) {
+    // Replace updated user in local array with server-confirmed data
+    const idx = users.findIndex(u => u.id === editUserId);
+    if (idx !== -1 && res.user) users[idx] = res.user;
+  } else {
+    // Prepend new user returned by server
+    if (res.user) users.unshift(res.user);
+  }
+
+  renderUsers();
+  setSynced();
+  App.closeModal('user-modal');
+  App.toast(editUserId ? I18n.t('user_updated') : I18n.t('user_created'), 'success');
+
+  // Follow-up silent poll to catch any other DB changes
+  setTimeout(() => loadUsers(true), 1500);
+};
+
+// ── Toggle active status ────────────────────────────────────
+window.toggleStatus = async (id) => {
+  const u = users.find(u => u.id === id);
+  if (!u) return;
+
+  setSyncing();
+
+  // Optimistic UI update — flip immediately, revert on error
+  u.is_active = u.is_active ? 0 : 1;
+  renderUsers();
+
+  const res = await App.api(App.BASE_URL + 'users.php', { action:'toggle_status', id }, 'POST');
+
+  if (!res.success) {
+    // Revert optimistic update
+    u.is_active = u.is_active ? 0 : 1;
+    renderUsers();
+    setSyncError();
+    App.toast(res.message || 'Failed to update status.', 'error');
+    return;
+  }
+
+  // Confirm with server-returned value
+  u.is_active = res.is_active ? 1 : 0;
+  renderUsers();
+  setSynced();
+  App.toast(res.message || 'Status updated.', 'success');
+};
+
+// ── Delete user ─────────────────────────────────────────────
+window.deleteUser = (id) => {
+  const u = users.find(u => u.id === id);
+  if (!u) return;
+
+  App.confirm(
+    `Delete "${u.full_name}" (@${u.username})?\n\nThis permanently removes them from the database and cannot be undone.`,
+    async () => {
+      // Optimistic remove — remove from UI immediately
+      const backup = [...users];
+      users = users.filter(u => u.id !== id);
+      renderUsers();
+      setSyncing();
+
+      // Fade the row out visually if it still exists
+      const row = document.getElementById(`row-${id}`);
+      if (row) row.style.opacity = '0.4';
+
+      const res = await App.api(App.BASE_URL + 'users.php', { action:'delete', id }, 'POST');
+
+      if (!res.success) {
+        // Revert — user was NOT deleted from DB
+        users = backup;
+        renderUsers();
+        setSyncError();
+        App.toast(res.message || 'Delete failed. User was not removed from the database.', 'error');
+        return;
+      }
+
+      // Success — DB confirmed deletion
+      setSynced();
+      App.toast(res.message || 'User deleted from the database.', 'success');
+
+      // One more fetch to confirm DB state matches UI
+      setTimeout(() => loadUsers(true), 800);
+    }
+  );
+};
+
+// ── Reset password ──────────────────────────────────────────
+window.resetPassword = (id) => {
+  const u = users.find(u => u.id === id);
+  if (!u) return;
+  App.confirm(
+    `Reset password for "${u.full_name}"?\n\nA secure temporary password will be generated and emailed to ${u.email}.`,
+    async () => {
+      App.showLoading();
+      const res = await App.api(App.BASE_URL + 'users.php', { action:'reset_password', id }, 'POST');
+      App.hideLoading();
+      if (res.success) App.toast(res.message, 'success');
+      else             App.toast(res.message || 'Reset failed.', 'error');
+    }
+  );
+};
+
+// ── Search ──────────────────────────────────────────────────
+document.getElementById('user-search').addEventListener('input', renderUsers);
+
+// ── Auto-poll every 30 seconds ─────────────────────────────
+// This keeps the table in sync if an admin deletes a user from
+// phpMyAdmin, the DB console, or another browser tab.
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(() => loadUsers(true), 30000);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+// Stop polling when tab is hidden, resume when visible
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopPolling();
+  else { loadUsers(true); startPolling(); }
+});
+
+// ── Initial load ────────────────────────────────────────────
+loadUsers();
+startPolling();
+
+// Listen for language changes and re-render users table
+window.addEventListener('i18n:changed', () => {
+  loadUsers(true);
+  I18n.init();
+});
+</script>
+</body>
+</html>

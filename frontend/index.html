@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SugarCast — Login | Mbeya Sugar Demand System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="assets/css/index.css">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+<body>
+
+  <div class="bg-layer"></div>
+  <div class="bg-overlay"></div>
+  <div class="particles" id="particles"></div>
+
+  <div class="page-scroll">
+
+    <div class="split-layout">
+
+      <!-- ══ LEFT: HERO + STATS ══ -->
+      <div class="hero-side">
+
+        <div class="hero-badge" data-i18n="login_hero_badge"> &nbsp; Welcome to Mbeya Market Intelligence</div>
+
+        <h1 class="hero-title" data-i18n="login_hero_title">Smart Sugar Demand Planning</h1>
+
+        <p class="hero-desc" data-i18n="login_hero_desc">
+          AI-powered sugar demand forecasting, stock recommendations and market intelligence for sugar traders and suppliers in Mbeya Tanzania.
+        </p>
+
+        
+
+        
+
+      </div>
+
+      <!-- ══ RIGHT: LOGIN CARD ══ -->
+      <div class="card-side">
+        <div class="login-card">
+          <div class="card-shimmer"></div>
+
+          <!-- Brand -->
+          <div class="card-brand">
+            <div class="card-subtitle" data-i18n="login_subtitle"></div>
+          </div>
+
+          <!-- Message -->
+          <div class="form-msg" id="form-msg">
+            <span id="msg-icon"></span><span id="msg-text"></span>
+          </div>
+
+          <!-- ── LOGIN PANEL ── -->
+          <div class="form-panel active" id="panel-login">
+            <form id="login-form" autocomplete="off">
+
+              <div class="form-group">
+                <label class="form-label" for="username" data-i18n="login_username_label">Username or Email</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                  <input class="form-input" type="text" id="username" name="username"
+                    placeholder="Enter username or email" data-i18n-placeholder="login_username_placeholder" autocomplete="username" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="password" data-i18n="login_password_label">Password</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  <input class="form-input" type="password" id="password" name="password"
+                    placeholder="Enter your password" data-i18n-placeholder="login_password_placeholder" autocomplete="current-password" required>
+                  <button type="button" class="toggle-pwd" id="toggle-pwd"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                </div>
+              </div>
+
+              <div class="login-options">
+                <label class="remember-me">
+                  <input type="checkbox" id="remember"> <span data-i18n="login_remember_me">Remember me</span>
+                </label>
+                <a href="reset-password.html" class="forgot-link" data-i18n="login_forgot_password">Forgot password?</a>
+              </div>
+
+              <button type="submit" class="submit-btn" id="login-btn">
+                <span id="login-btn-text" data-i18n="login_signin">Sign In</span>
+                <div class="btn-spinner" id="login-spinner"></div>
+              </button>
+
+              <div class="card-foot-note">
+                <span data-i18n="login_no_account">Don't have an account?</span>
+                <button type="button" class="link-btn" onclick="switchTab('signup')" data-i18n="login_create_account">Create an account</button>
+              </div>
+
+            </form>
+          </div>
+
+          <!-- ── SIGNUP PANEL ── -->
+          <div class="form-panel" id="panel-signup">
+            <form id="signup-form" autocomplete="off">
+
+              <div class="form-group">
+                <label class="form-label" for="sf-name" data-i18n="login_signup_fullname_label">Full Name</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                  <input class="form-input" type="text" id="sf-name" name="full_name"
+                    placeholder="Your full name" data-i18n-placeholder="login_signup_fullname_placeholder"
+                    pattern="[A-Za-z][A-Za-z\s.'-]*" title="Use letters only" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="sf-email" data-i18n="login_signup_email_label">Email Address</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" style="display:none"/><path d="M22 6c0-1.1-.9-2-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6z"/><polyline points="22 6 12 13 2 6"/></svg></span>
+                  <input class="form-input" type="email" id="sf-email" name="email"
+                    placeholder="your@email.com" data-i18n-placeholder="login_signup_email_placeholder" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="sf-role">Role</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                  <select class="form-input" id="sf-role" name="role" required>
+                    <option value="trader">Trader</option>
+                    <option value="supplier">Supplier</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="sf-pwd" data-i18n="login_signup_password_label">Password</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  <input class="form-input" type="password" id="sf-pwd" name="password"
+                    placeholder="Minimum 8 characters, 1 uppercase & 1 special" data-i18n-placeholder="login_signup_password_placeholder" required>
+                  <button type="button" class="toggle-pwd" data-target="sf-pwd"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="sf-pwd-confirm" data-i18n="login_signup_confirm_password_label">Confirm Password</label>
+                <div class="input-wrap">
+                  <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  <input class="form-input" type="password" id="sf-pwd-confirm" name="password_confirm"
+                    placeholder="Confirm password" data-i18n-placeholder="login_signup_confirm_password_placeholder" required>
+                  <button type="button" class="toggle-pwd" data-target="sf-pwd-confirm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                </div>
+              </div>
+
+              <button type="submit" class="submit-btn" id="signup-btn">
+                <span id="signup-btn-text" data-i18n="login_signup_create_account">Create Account</span>
+                <div class="btn-spinner" id="signup-spinner"></div>
+              </button>
+
+              <div class="card-foot-note">
+                <span data-i18n="login_signup_have_account">Already have an account?</span>
+                <button type="button" class="link-btn" onclick="switchTab('login')" data-i18n="login_signup_signin">Sign in</button>
+              </div>
+
+            </form>
+          </div>
+
+        </div><!-- /login-card -->
+      </div><!-- /card-side -->
+
+    </div><!-- /split-layout -->
+
+    <div class="page-footer" data-i18n="login_footer_copyright">
+      © 2026 SugarCast · Mbeya Sugar Market Intelligence System · All rights reserved
+    </div>
+
+  </div><!-- /page-scroll -->
+
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/i18n.js"></script>
+  <script>
+    // ── Particles ─────────────────────────────────────────────
+    (function(){
+      const c = document.getElementById("particles");
+      for(let i = 0; i < 20; i++){
+        const p = document.createElement("div");
+        p.className = "particle";
+        const s = 4 + Math.random() * 14;
+        p.style.cssText = [
+          "width:"+s+"px",
+          "height:"+s+"px",
+          "left:"+(Math.random()*100)+"%",
+          "border-radius:"+(Math.random()>.5?"2px":"50%"),
+          "animation-duration:"+(10+Math.random()*18)+"s",
+          "animation-delay:"+(Math.random()*16)+"s",
+          "opacity:"+(0.06+Math.random()*0.14),
+        ].join(";");
+        c.appendChild(p);
+      }
+    })();
+
+    // ── Helpers ───────────────────────────────────────────────
+    const msgBox  = document.getElementById("form-msg");
+    const msgTxt  = document.getElementById("msg-text");
+    const msgIcon = document.getElementById("msg-icon");
+
+    function setMsg(text, type="error"){
+      msgBox.className = "form-msg show " + type;
+      msgTxt.textContent = text;
+      msgIcon.innerHTML = type==="success" ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>` : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    }
+    function clearMsg(){
+      msgBox.className = "form-msg";
+      msgTxt.textContent = "";
+    }
+
+    // ── Ambad tab switcher ────────────────────────────────────
+    function switchTab(tab){
+      document.querySelectorAll(".form-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".form-panel").forEach(p => p.classList.remove("active"));
+      const tabEl = document.getElementById("tab-"+tab);
+      const panelEl = document.getElementById("panel-"+tab);
+      if(tabEl) tabEl.classList.add("active");
+      if(panelEl) panelEl.classList.add("active");
+      clearMsg();
+    }
+
+    // ── Password toggle ───────────────────────────────────────
+    document.querySelectorAll(".toggle-pwd").forEach(btn => {
+      btn.addEventListener("click", function(){
+        const targetId = this.getAttribute("data-target") || "password";
+        const inp = document.getElementById(targetId);
+        if (!inp) return;
+        const isText = inp.type === "text";
+        inp.type = isText ? "password" : "text";
+        this.innerHTML = isText ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>` : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+      });
+    });
+
+    // ── Login submit ──────────────────────────────────────────
+    document.getElementById("login-form").addEventListener("submit", async function(e){
+      e.preventDefault();
+      const btn = document.getElementById("login-btn");
+      const sp  = document.getElementById("login-spinner");
+      const tx  = document.getElementById("login-btn-text");
+      btn.disabled = true; sp.style.display = "block"; tx.textContent = I18n.t('login_signing_in');
+      clearMsg();
+      await new Promise(r => setTimeout(r, 900));
+
+      try{
+        const fd = new FormData(this);
+        fd.append("action","login");
+        const res  = await fetch(App.BASE_URL + 'auth.php', {method:"POST", body:fd});
+
+        const raw = await res.text();
+        let data;
+        try { data = JSON.parse(raw); }
+        catch(_) {
+          const stripped = raw.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,200);
+          throw new Error(I18n.t('login_server_error', { msg: stripped || 'Unexpected response.' }));
+        }
+
+        if(data.success){
+          localStorage.setItem("sc_user", JSON.stringify(data.user));
+          // Clear credentials before redirect — modern secure UX
+          this.reset();
+          window.location.href = data.redirect || "pages/dashboard.html";
+          return;
+        }
+        throw new Error(data.message || I18n.t('login_failed'));
+      } catch(err){
+        setMsg(err.message || I18n.t('login_failed'));
+      }
+      btn.disabled = false; sp.style.display = "none"; tx.textContent = I18n.t('login_signin');
+    });
+
+    // ── Signup submit ─────────────────────────────────────────
+    document.getElementById("signup-form").addEventListener("submit", async function(e){
+      e.preventDefault();
+      clearMsg();
+
+      localStorage.removeItem("sc_user");
+
+      const nameVal  = document.getElementById("sf-name").value.trim();
+      const emailVal = document.getElementById("sf-email").value.trim();
+      const pass     = document.getElementById("sf-pwd").value;
+      const passConf = document.getElementById("sf-pwd-confirm").value;
+
+      // Client-side validation first — fast feedback before hitting server
+      if(!nameVal){
+        setMsg(I18n.t('login_name_required'), "error");
+        document.getElementById("sf-name").focus();
+        return;
+      }
+      if(!/^[A-Za-z][A-Za-z\s.'-]*$/.test(nameVal)){
+        setMsg("Full name can only contain letters, spaces, periods, apostrophes, or hyphens.", "error");
+        document.getElementById("sf-name").focus();
+        return;
+      }
+      if(!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)){
+        setMsg(I18n.t('login_invalid_email'), "error");
+        document.getElementById("sf-email").focus();
+        return;
+      }
+      if(!/^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/.test(pass)){
+        setMsg("Password must be at least 8 characters long and include at least one uppercase letter and one special character.", "error");
+        document.getElementById("sf-pwd").focus();
+        return;
+      }
+      if(pass !== passConf){
+        setMsg(I18n.t('login_password_mismatch'), "error");
+        document.getElementById("sf-pwd-confirm").focus();
+        return;
+      }
+
+      const btn  = document.getElementById("signup-btn");
+      const sp   = document.getElementById("signup-spinner");
+      const tx   = document.getElementById("signup-btn-text");
+      btn.disabled = true;
+      sp.style.display = "block";
+      tx.textContent = I18n.t('signup_creating');
+
+      try{
+        const fd = new FormData(this);
+        fd.append("action", "signup");
+
+        const res = await fetch(App.BASE_URL + 'auth.php', { method:"POST", body:fd });
+
+        // Guard: if server returned HTML instead of JSON, extract a readable message
+        const raw = await res.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch(_) {
+          // Strip HTML tags from PHP error output to show readable message
+          const stripped = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+          throw new Error("Server error: " + (stripped || "Unexpected response. Check server logs."));
+        }
+
+        if(data.success){
+          // ── Clear all signup fields and any stale signed-in user data ──────────────────────────────
+          localStorage.removeItem("sc_user");
+          this.reset();
+          document.getElementById("sf-name").value        = "";
+          document.getElementById("sf-email").value       = "";
+          document.getElementById("sf-pwd").value         = "";
+          document.getElementById("sf-pwd-confirm").value = "";
+
+          // Do NOT store session or auto-login — user must sign in manually
+          // Switch back to the login tab and show a success notice
+          switchTab("login");
+          setMsg(I18n.t('signup_success'), "success");
+
+          // Pre-fill the email on the login form as a convenience hint
+          const emailField = document.getElementById("username");
+          if(emailField) emailField.value = data.user.email || "";
+
+          btn.disabled = false;
+          sp.style.display = "none";
+          tx.textContent = I18n.t('login_signup_create_account');
+          return;
+        }
+
+        throw new Error(data.message || I18n.t('signup_failed'));
+
+      } catch(err){
+        // On error: clear only password fields (keep name/email for correction)
+        document.getElementById("sf-pwd").value         = "";
+        document.getElementById("sf-pwd-confirm").value = "";
+
+        setMsg(err.message || I18n.t('signup_failed'), "error");
+        btn.disabled = false;
+        sp.style.display = "none";
+        tx.textContent = I18n.t('login_signup_create_account');
+      }
+    });
+  </script>
+<script src="assets/js/i18n.js"></script>
+</body>
+</html>

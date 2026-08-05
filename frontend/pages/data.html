@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Data Management — SugarCast</title>
+ <link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject(I18n.t('data_title'), I18n.t('data_subtitle'));
+
+let curPage = 1;
+const perPage = 15;
+let totalRecords = 0;
+let editId = null;
+let searchTimeout = null;
+
+document.getElementById('main-content').innerHTML = `
+ <div class="page-header flex justify-between items-center">
+ <div>
+ <h1 class="page-title" data-i18n="data_title"></h1>
+ <p class="page-subtitle" data-i18n="data_subtitle"></p>
+ </div>
+ <div class="flex gap-2">
+ <button class="btn btn-secondary" id="export-btn" data-i18n="data_export"> Export CSV</button>
+ <button class="btn btn-primary" onclick="openAddModal()" data-i18n="data_add"> Add Record</button>
+ </div>
+ </div>
+
+ <!-- Upload Zone -->
+ <div class="card mb-4">
+ <div class="card-header">
+ <span class="card-title" data-i18n="data_upload_title"> Upload CSV Dataset</span>
+ <div style="position:relative;display:inline-block">
+   <button class="btn btn-sm btn-secondary" id="sample-csv-btn" type="button" data-i18n="data_sample">Sample CSV</button>
+   <div id="sample-csv-menu" style="display:none;margin-top:6px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);min-width:220px;z-index:20;padding:8px 0">
+     <button type="button" id="download-sample-btn" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:0;color:var(--text-primary);cursor:pointer">Download CSV template</button>
+     <button type="button" id="browse-sample-btn" style="display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:0;color:var(--text-primary);cursor:pointer">Browse CSV file</button>
+   </div>
+ </div>
+ </div>
+ <div class="card-body">
+ <div class="upload-zone" id="upload-zone">
+ <div class="upload-zone-icon"></div>
+ <div class="upload-zone-text"><span data-i18n="data_drop">Drag & drop your CSV file here, or</span> <strong style="color:var(--brand-primary)" data-i18n="data_browse">click to browse</strong></div>
+ <div class="upload-zone-hint" data-i18n="data_cols">Columns: sale_date, quantity_kg, price_per_kg, market_location, sugar_type, supplier_name, season, is_holiday</div>
+ <input type="file" id="csv-input" accept=".csv" style="display:none">
+ </div>
+ </div>
+ </div>
+
+ <!-- Data Table -->
+ <div class="card">
+ <div class="card-header">
+ <span class="card-title"><span data-i18n="data_records">Sales Records</span> <span id="total-badge" class="badge badge-orange">— records</span></span>
+ <div class="flex gap-2">
+ <div class="search-bar">
+ <span></span>
+ <input type="text" id="search-input" placeholder="Search supplier, type..." data-i18n-placeholder="data_search">
+ </div>
+ <select class="form-control" id="season-filter" style="width:140px;padding:8px 12px">
+ <option value="" data-i18n="data_all_seasons">All Seasons</option>
+ <option value="dry" data-i18n="data_dry">Dry</option>
+ <option value="wet" data-i18n="data_wet">Wet</option>
+ <option value="harvest" data-i18n="data_harvest">Harvest</option>
+ <option value="planting" data-i18n="data_planting">Planting</option>
+ </select>
+ </div>
+ </div>
+ <div class="table-wrapper" style="border:none;border-radius:0">
+ <table>
+ <thead>
+ <tr>
+ <th data-i18n="data_col_id">#</th><th data-i18n="data_col_date">Date</th><th data-i18n="data_col_qty">Quantity (kg)</th><th data-i18n="data_col_price">Price/kg</th>
+ <th data-i18n="data_col_rev">Revenue</th><th data-i18n="data_col_supplier">Supplier</th><th data-i18n="data_col_type">Type</th><th data-i18n="data_col_season">Season</th><th data-i18n="data_col_holiday">Holiday</th><th data-i18n="data_col_actions">Actions</th>
+ </tr>
+ </thead>
+ <tbody id="data-tbody">
+ <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)" data-i18n="data_loading">Loading...</td></tr>
+ </tbody>
+ </table>
+ </div>
+ <div class="card-footer">
+ <div class="pagination" id="pagination"></div>
+ </div>
+ </div>
+
+ <!-- Add/Edit Modal -->
+ <div class="modal-overlay" id="add-modal">
+ <div class="modal">
+ <div class="modal-header">
+ <h3 class="modal-title" id="modal-title"> Add Sales Record</h3>
+ <button class="modal-close" data-close-modal></button>
+ </div>
+ <div class="modal-body">
+ <form id="record-form">
+ <input type="hidden" id="edit-id" name="id">
+ <div class="form-row">
+ <div class="form-group">
+ <label class="form-label" data-i18n="data_sale_date">Sale Date *</label>
+ <input type="date" class="form-control" name="sale_date" required>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="data_qty">Quantity (kg) *</label>
+ <input type="number" class="form-control" name="quantity_kg" placeholder="e.g. 5000" min="1" step="0.01" required>
+ </div>
+ </div>
+ <div class="form-row">
+ <div class="form-group">
+ <label class="form-label" data-i18n="data_price">Price per kg *</label>
+ <input type="number" class="form-control" name="price_per_kg" placeholder="e.g. 1.85" min="0" step="0.01" required>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="data_sugar_type">Sugar Type</label>
+ <select class="form-control" name="sugar_type">
+ <option value="brown" data-i18n="data_brown">Brown Sugar</option>
+ <option value="white_refined" data-i18n="data_white_refined">White Refined</option>
+ <option value="raw" data-i18n="data_raw">Raw Sugar</option>
+ </select>
+ </div>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="data_supplier">Supplier Name</label>
+ <input type="text" class="form-control" name="supplier_name" placeholder="e.g. Kilombero Sugar">
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="data_location">Market Location</label>
+ <input type="text" class="form-control" name="market_location" value="Mbeya Central Market">
+ </div>
+ <div class="form-row">
+ <div class="form-group">
+ <label class="form-label">Season</label>
+ <select class="form-control" name="season">
+ <option value="dry">Dry</option>
+ <option value="wet">Wet</option>
+ <option value="harvest">Harvest</option>
+ <option value="planting">Planting</option>
+ </select>
+ </div>
+ <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:2px">
+ <label class="form-check">
+ <input type="checkbox" name="is_holiday" value="1">
+ <span>Holiday Period</span>
+ </label>
+ </div>
+ </div>
+ </form>
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-secondary" data-close-modal>Cancel</button>
+ <button class="btn btn-primary" id="save-record-btn"> Save Record</button>
+ </div>
+ </div>
+ </div>
+`;
+
+const SUGAR_LABELS = { white_refined:'White Refined', brown:'Brown Sugar', raw:'Raw Sugar' };
+const SEASON_ICONS = { dry:'', wet:'', harvest:'', planting:'' };
+
+// ── Load from DB ───────────────────────────────────────────
+async function loadData() {
+ const search = document.getElementById('search-input')?.value || '';
+ const season = document.getElementById('season-filter')?.value || '';
+ const tbody = document.getElementById('data-tbody');
+
+ try {
+ const params = { action: 'list', page: curPage, limit: perPage, search, season };
+ const res = await App.api(App.BASE_URL + 'sales.php', params, 'GET');
+
+ if (!res.success) {
+ tbody.innerHTML =
+ `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--error)">Failed to load data: ${res.message || 'Server error'}. <a href="#" onclick="loadData();return false;" style="color:var(--brand-primary);font-weight:600">Retry</a></td></tr>`;
+ return;
+ }
+
+ totalRecords = res.total;
+ document.getElementById('total-badge').textContent = `${totalRecords} records`;
+
+ const rows = res.data;
+ if (!rows.length) {
+ tbody.innerHTML =
+ `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)">No records found.</td></tr>`;
+ renderPagination(0);
+ return;
+ }
+
+ tbody.innerHTML = rows.map(r => `
+ <tr>
+ <td class="font-mono text-muted">${r.id}</td>
+ <td>${App.fmtDate(r.sale_date)}</td>
+ <td class="font-mono">${App.fmtNum(r.quantity_kg, 0)}</td>
+ <td class="font-mono">Tsh ${App.fmtNum(r.price_per_kg, 2)}</td>
+ <td class="font-mono">Tsh ${App.fmtNum(r.total_revenue, 2)}</td>
+ <td>${r.supplier_name || '—'}</td>
+ <td><span class="badge badge-info">${SUGAR_LABELS[r.sugar_type] || r.sugar_type}</span></td>
+ <td>${SEASON_ICONS[r.season] || ''} ${r.season}</td>
+ <td>${r.is_holiday ? '<span class="badge badge-warning">Holiday</span>' : '<span style="color:var(--text-muted)">—</span>'}</td>
+ <td>
+ <div class="flex gap-2">
+ <button class="btn btn-sm btn-secondary btn-icon" onclick="editRecord(${r.id})" title="Edit"></button>
+ <button class="btn btn-sm btn-danger btn-icon" onclick="deleteRecord(${r.id})" title="Delete"></button>
+ </div>
+ </td>
+ </tr>`).join('');
+
+ renderPagination(res.pages);
+ } catch (err) {
+ // Guarantees the table never stays frozen on the static "Loading…"
+ // placeholder even if something above throws unexpectedly.
+ console.error('loadData failed:', err);
+ tbody.innerHTML =
+ `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--error)">Something went wrong loading records. <a href="#" onclick="loadData();return false;" style="color:var(--brand-primary);font-weight:600">Retry</a></td></tr>`;
+ }
+}
+
+function renderPagination(totalPages) {
+ const el = document.getElementById('pagination');
+ if (totalPages <= 1) { el.innerHTML = ''; return; }
+ let html = '';
+ if (curPage > 1) html += `<button class="btn btn-sm btn-secondary" onclick="goPage(${curPage-1})">← Prev</button>`;
+ html += `<span style="padding:0 12px;color:var(--text-muted);font-size:0.85rem">Page ${curPage} of ${totalPages}</span>`;
+ if (curPage < totalPages) html += `<button class="btn btn-sm btn-secondary" onclick="goPage(${curPage+1})">Next →</button>`;
+ el.innerHTML = html;
+}
+
+window.goPage = (p) => { curPage = p; loadData(); };
+
+// ── Add / Edit ─────────────────────────────────────────────
+window.openAddModal = () => {
+ editId = null;
+ document.getElementById('modal-title').textContent = ' Add Sales Record';
+ document.getElementById('record-form').reset();
+ document.querySelector('[name="market_location"]').value = 'Mbeya Central Market';
+ App.openModal('add-modal');
+};
+
+window.editRecord = async (id) => {
+ let record = null;
+ try {
+ const res = await App.api(App.BASE_URL + 'sales.php', { action: 'get', id }, 'GET');
+ record = res.success ? res.data : null;
+ } catch (err) {
+ console.error('editRecord failed:', err);
+ }
+ if (!record) { App.toast('Record not found', 'error'); return; }
+
+ editId = id;
+ document.getElementById('modal-title').textContent = ' Edit Sales Record';
+ const form = document.getElementById('record-form');
+ form.querySelector('[name="sale_date"]').value = record.sale_date;
+ form.querySelector('[name="quantity_kg"]').value = record.quantity_kg;
+ form.querySelector('[name="price_per_kg"]').value = record.price_per_kg;
+ form.querySelector('[name="sugar_type"]').value = record.sugar_type;
+ form.querySelector('[name="supplier_name"]').value = record.supplier_name || '';
+ form.querySelector('[name="market_location"]').value = record.market_location || 'Mbeya Central Market';
+ form.querySelector('[name="season"]').value = record.season;
+ form.querySelector('[name="is_holiday"]').checked = !!record.is_holiday;
+ App.openModal('add-modal');
+};
+
+window.deleteRecord = (id) => {
+ App.confirm('Delete this sales record? This cannot be undone.', async () => {
+ App.showLoading();
+ const res = await App.api(App.BASE_URL + 'sales.php', { action: 'delete', id }, 'POST');
+ App.hideLoading();
+ if (res.success) {
+ App.toast('Record deleted.', 'success');
+ loadData();
+ } else {
+ App.toast(res.message || 'Failed to delete.', 'error');
+ }
+ });
+};
+
+document.getElementById('save-record-btn').addEventListener('click', async () => {
+ const form = document.getElementById('record-form');
+ const data = {};
+ new FormData(form).forEach((v, k) => data[k] = v);
+ data.is_holiday = form.querySelector('[name="is_holiday"]').checked ? 1 : 0;
+
+ if (!data.sale_date || !data.quantity_kg || !data.price_per_kg) {
+ App.toast('Date, quantity and price are required.', 'error'); return;
+ }
+
+ const btn = document.getElementById('save-record-btn');
+ btn.disabled = true; btn.textContent = 'Saving…';
+
+ try {
+ const res = editId
+ ? await App.api(App.BASE_URL + 'sales.php', { ...data, action: 'update', id: editId }, 'POST')
+ : await App.api(App.BASE_URL + 'sales.php', { ...data, action: 'add' }, 'POST');
+
+ if (res.success) {
+ App.toast(editId ? 'Record updated.' : 'Record added.', 'success');
+ App.closeModal('add-modal');
+ loadData();
+ } else {
+ App.toast(res.message || 'Failed to save.', 'error');
+ }
+ } catch (err) {
+ console.error('save-record failed:', err);
+ App.toast('Something went wrong saving this record. Please try again.', 'error');
+ } finally {
+ // Guaranteed to run whether the save succeeded, failed, or threw —
+ // the button can never get stuck reading "Saving…".
+ btn.disabled = false; btn.textContent = ' Save Record';
+ }
+});
+
+// ── CSV Upload ─────────────────────────────────────────────
+const uploadZone = document.getElementById('upload-zone');
+const csvInput = document.getElementById('csv-input');
+
+uploadZone.addEventListener('click', () => csvInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+ e.preventDefault(); uploadZone.classList.remove('drag-over');
+ if (e.dataTransfer.files[0]) uploadCSV(e.dataTransfer.files[0]);
+});
+csvInput.addEventListener('change', () => { if (csvInput.files[0]) uploadCSV(csvInput.files[0]); });
+
+async function uploadCSV(file) {
+ if (!file.name.endsWith('.csv')) { App.toast('Only CSV files allowed.', 'error'); return; }
+ App.showLoading();
+ try {
+ const fd = new FormData();
+ fd.append('action', 'upload_csv');
+ fd.append('csv_file', file);
+ const res = await App.api(App.BASE_URL + 'sales.php', fd, 'POST');
+ if (res.success) {
+ App.toast(res.message || 'CSV imported!', 'success');
+ loadData();
+ } else {
+ App.toast(res.message || 'Upload failed.', 'error');
+ }
+ } catch (err) {
+ console.error('uploadCSV failed:', err);
+ App.toast('Something went wrong uploading this file. Please try again.', 'error');
+ } finally {
+ App.hideLoading();
+ }
+}
+
+// ── Export CSV ─────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', async () => {
+ App.showLoading();
+ const res = await App.api(App.BASE_URL + 'sales.php', { action: 'list', limit: 9999, page: 1 }, 'GET');
+ App.hideLoading();
+ if (!res.success) { App.toast('Export failed.', 'error'); return; }
+
+ const headers = ['id','sale_date','quantity_kg','price_per_kg','total_revenue','market_location','sugar_type','supplier_name','season','is_holiday'];
+ const csv = [headers.join(','), ...res.data.map(r => headers.map(h => `"${r[h] ?? ''}"`).join(','))].join('\n');
+ const a = document.createElement('a');
+ a.href = 'data:text/csv,' + encodeURIComponent(csv);
+ a.download = `sugarcast_sales_${new Date().toISOString().split('T')[0]}.csv`;
+ a.click();
+});
+
+// ── Sample CSV menu ───────────────────────────────────────
+const sampleCsvBtn = document.getElementById('sample-csv-btn');
+const sampleCsvMenu = document.getElementById('sample-csv-menu');
+const downloadSampleBtn = document.getElementById('download-sample-btn');
+const browseSampleBtn = document.getElementById('browse-sample-btn');
+
+function closeSampleMenu() { sampleCsvMenu.style.display = 'none'; }
+
+sampleCsvBtn.addEventListener('click', e => {
+ e.preventDefault();
+ sampleCsvMenu.style.display = sampleCsvMenu.style.display === 'block' ? 'none' : 'block';
+});
+
+document.addEventListener('click', e => {
+ if (!sampleCsvMenu.contains(e.target) && e.target !== sampleCsvBtn) closeSampleMenu();
+});
+
+downloadSampleBtn.addEventListener('click', () => {
+ closeSampleMenu();
+ const sample = [
+  'sale_date,quantity_kg,price_per_kg,market_location,sugar_type,supplier_name,season,is_holiday',
+  '2026-06-01,5000,1.85,Mbeya Central Market,white_refined,TanzaniaSweet Ltd,dry,0',
+  '2026-06-15,4800,1.90,Mbeya Central Market,brown,Kilombero Sugar,dry,0'
+ ].join('\n');
+ const a = document.createElement('a');
+ a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(sample);
+ a.download = 'sample_sales_template.csv';
+ a.click();
+});
+
+browseSampleBtn.addEventListener('click', () => {
+ closeSampleMenu();
+ csvInput.click();
+});
+
+// ── Search / Filter ────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', () => {
+ clearTimeout(searchTimeout);
+ searchTimeout = setTimeout(() => { curPage = 1; loadData(); }, 350);
+});
+document.getElementById('season-filter').addEventListener('change', () => { curPage = 1; loadData(); });
+
+// Initial load
+loadData();
+
+// Listen for language changes and re-render data table
+window.addEventListener('i18n:changed', () => {
+  loadData();
+});
+</script>
+</body>
+</html>

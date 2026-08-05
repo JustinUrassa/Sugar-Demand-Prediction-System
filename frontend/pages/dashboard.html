@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — SugarCast</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Professional Dashboard Styles ── */
+    .dash-welcome {
+      background: linear-gradient(135deg, #0f172a 0%, #14532d 38%, #0f766e 70%, #b45309 100%);
+      border-radius: 20px;
+      padding: 28px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.22);
+      border: 1px solid rgba(255,255,255,0.16);
+    }
+    .dash-welcome::before {
+      content: '';
+      position: absolute;
+      top: -50px; right: -40px;
+      width: 220px; height: 220px;
+      background: radial-gradient(circle, rgba(251,191,36,0.28), rgba(251,191,36,0) 70%);
+      border-radius: 50%;
+    }
+    .dash-welcome::after {
+      content: '';
+      position: absolute;
+      bottom: -70px; left: 24%;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(16,185,129,0.22), rgba(16,185,129,0) 72%);
+      border-radius: 50%;
+    }
+    .welcome-text { position: relative; z-index: 1; }
+    .welcome-greeting { font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,.65); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .welcome-title { font-size: 1.6rem; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 8px; }
+    .welcome-title em { font-style: normal; background: linear-gradient(90deg, #fde68a, #fbbf24 45%, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .welcome-subtitle { font-size: 0.875rem; color: rgba(255,255,255,.72); }
+    .welcome-time { font-size: 0.75rem; color: rgba(255,255,255,.5); margin-top: 4px; }
+    .welcome-badge { position: relative; z-index: 1; display: flex; gap: 12px; }
+    .welcome-stat { background: rgba(255,255,255,.12); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; padding: 14px 18px; text-align: center; min-width: 90px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+    .welcome-stat-val { font-size: 1.4rem; font-weight: 800; color: #fef3c7; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .welcome-stat-lbl { font-size: 0.65rem; color: rgba(255,255,255,.72); text-transform: uppercase; letter-spacing: .6px; margin-top: 4px; }
+
+    /* ── KPI Cards ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 22px;
+      position: relative;
+      overflow: hidden;
+      transition: transform .18s, box-shadow .18s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 16px 16px 0 0;
+    }
+    .kpi-card.orange::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+    .kpi-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .kpi-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
+    .kpi-card.amber::before  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .kpi-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+    .kpi-icon {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .kpi-icon.orange { background: rgba(249,115,22,.12); color: #f97316; }
+    .kpi-icon.blue   { background: rgba(59,130,246,.12); color: #3b82f6; }
+    .kpi-icon.green  { background: rgba(16,185,129,.12); color: #10b981; }
+    .kpi-icon.amber  { background: rgba(245,158,11,.12); color: #f59e0b; }
+    .kpi-trend { font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; }
+    .kpi-trend.up   { background: rgba(16,185,129,.1); color: #10b981; }
+    .kpi-trend.down { background: rgba(239,68,68,.1);  color: #ef4444; }
+    .kpi-trend.neutral { background: rgba(100,116,139,.1); color: #64748b; }
+    .kpi-value { font-size: 1.85rem; font-weight: 800; color: var(--text-primary); line-height: 1; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+    .kpi-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
+    .kpi-bar { height: 4px; background: var(--bg-elevated); border-radius: 999px; margin-top: 14px; overflow: hidden; }
+    .kpi-bar-fill { height: 100%; border-radius: 999px; transition: width .6s ease; }
+
+    /* ── Charts ── */
+    .charts-main { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 22px; }
+    .chart-tall .chart-wrapper { height: 280px; }
+
+    /* ── Bottom grid ── */
+    .dash-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 24px; align-items: start; }
+
+    /* ── Activity feed ── */
+    .activity-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--divider); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .activity-dot.danger  { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.15); }
+    .activity-dot.success { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+    .activity-dot.warning { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+    .activity-dot.info    { background: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .activity-title { font-size: 0.83rem; font-weight: 600; color: var(--text-primary); }
+    .activity-desc  { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+    @media(max-width:1024px) { .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+    @media(max-width:768px)  {
+      .kpi-grid    { grid-template-columns: 1fr 1fr; }
+      .charts-main { grid-template-columns: 1fr; }
+      .dash-bottom { grid-template-columns: 1fr; }
+      .welcome-badge { display: none; }
+      .dash-welcome  { padding: 22px 20px; }
+    }
+    @media(max-width:480px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+    /* Remove colored top accent bar and colored icon backgrounds for KPI cards */
+    .kpi-card::before { display: none !important; }
+    .kpi-icon.orange, .kpi-icon.blue, .kpi-icon.green, .kpi-icon.amber { background: transparent !important; }
+    /* Make KPI trend pills neutral */
+    .kpi-trend.up, .kpi-trend.down, .kpi-trend.neutral { background: transparent !important; color: var(--text-muted) !important; }
+    .theme-transition { transition: background-color .2s ease, color .2s ease, border-color .2s ease; }
+  </style>
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject('Dashboard', 'Mbeya Sugar Market Overview');
+
+window.addEventListener('theme:changed', () => {
+  document.querySelectorAll('.dash-welcome, .kpi-card, .card, .table-card').forEach(el => {
+    el.classList.remove('theme-transition');
+    void el.offsetWidth;
+    el.classList.add('theme-transition');
+  });
+  document.querySelectorAll('canvas').forEach(canvas => {
+    const chart = Chart.getChart(canvas);
+    chart?.update?.();
+  });
+});
+
+const user = JSON.parse(localStorage.getItem('sc_user') || '{}');
+const firstName = (user.full_name || user.username || 'User').split(' ')[0];
+
+const greetHour = new Date().getHours();
+const greetEn = greetHour < 12 ? 'Good Morning' : greetHour < 17 ? 'Good Afternoon' : 'Good Evening';
+const greetSw = greetHour < 12 ? 'Habari za Asubuhi' : greetHour < 17 ? 'Habari za Mchana' : 'Habari za Jioni';
+const greet = I18n.lang === 'sw' ? greetSw : greetEn;
+
+// SVG icons for KPI cards
+const IC_SALES  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>`;
+const IC_DEMAND = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+const IC_STOCK  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`;
+const IC_REC    = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+const IC_WARN   = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+const IC_OK     = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+const mainContent = document.getElementById('main-content');
+if (!mainContent) {
+  console.warn('Dashboard content container not found; skipping render.');
+} else {
+mainContent.innerHTML = `
+
+  <!-- Welcome Banner -->
+  <div class="dash-welcome">
+    <div class="welcome-text">
+      <div class="welcome-greeting">${greet},</div>
+      <div class="welcome-title">${firstName} <em></em></div>
+      <div class="welcome-subtitle" data-i18n="dash_subtitle">Mbeya Sugar Market Overview</div>
+      <div class="welcome-time" id="dash-time"></div>
+    </div>
+    <div class="welcome-badge">
+      <div class="welcome-stat">
+        <div class="welcome-stat-val" id="ws-sales">—</div>
+        <div class="welcome-stat-lbl" data-i18n="dash_total_sales">Total Sales</div>
+      </div>
+      <div class="welcome-stat">
+        <div class="welcome-stat-val" id="ws-pred">—</div>
+        <div class="welcome-stat-lbl" data-i18n="dash_est_demand">Estimated</div>
+      </div>
+      <div class="welcome-stat">
+        <div class="welcome-stat-val" id="ws-stock">—</div>
+        <div class="welcome-stat-lbl" data-i18n="dash_curr_stock">Stock</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card orange">
+      <div class="kpi-top">
+        <div class="kpi-icon orange">${IC_SALES}</div>
+        <span class="kpi-trend up" id="kpi-sales-trend" data-i18n="dash_all_time">▲ All time</span>
+      </div>
+      <div class="kpi-value" id="stat-sales">—</div>
+      <div class="kpi-label" data-i18n="dash_total_sales">Total Sales (kg)</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi-bar-sales" style="width:0%;background:linear-gradient(90deg,#f97316,#fb923c)"></div></div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-top">
+        <div class="kpi-icon blue">${IC_DEMAND}</div>
+        <span class="kpi-trend up" id="kpi-pred-trend" data-i18n="dash_latest_est">▲ Latest</span>
+      </div>
+      <div class="kpi-value" id="stat-pred">—</div>
+      <div class="kpi-label" data-i18n="dash_est_demand">Estimated Demand (kg)</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi-bar-pred" style="width:0%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div></div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-top">
+        <div class="kpi-icon green">${IC_STOCK}</div>
+        <span class="kpi-trend neutral" id="kpi-stock-trend" data-i18n="dash_loading">— Loading</span>
+      </div>
+      <div class="kpi-value" id="stat-stock">—</div>
+      <div class="kpi-label" data-i18n="dash_curr_stock">Current Stock (kg)</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi-bar-stock" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)"></div></div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-top">
+        <div class="kpi-icon amber">${IC_REC}</div>
+        <span class="kpi-trend neutral">15% buffer</span>
+      </div>
+      <div class="kpi-value" id="stat-rec">—</div>
+      <div class="kpi-label" data-i18n="dash_rec_stock">Recommended Stock (kg)</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi-bar-rec" style="width:0%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-main">
+    <div class="card chart-tall">
+      <div class="card-header">
+        <span class="card-title" data-i18n="dash_trend_title">Sugar Demand Trend — Mbeya Central Market</span>
+        <div style="display:flex;gap:6px">
+          <span class="badge badge-orange" data-i18n="dash_actual">Actual</span>
+          <span class="badge badge-info" data-i18n="dash_estimate">Estimate</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrapper"><canvas id="trend-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" data-i18n="dash_season_title">Demand by Season</span>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrapper" style="height:200px"><canvas id="season-chart"></canvas></div>
+        <div id="season-legend" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Grid -->
+  <div class="dash-bottom">
+    <!-- Recent Estimates -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" data-i18n="dash_rec_est">Recent Estimates</span>
+        <a href="prediction.html" class="btn btn-sm btn-secondary" data-i18n="dash_view_all">View All</a>
+      </div>
+      <div class="table-wrapper" style="border:none;border-radius:0">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="dash_target_date">Target Date</th>
+              <th data-i18n="dash_demand">Demand (kg)</th>
+              <th data-i18n="dash_confidence">Confidence</th>
+              <th data-i18n="dash_risk">Risk</th>
+            </tr>
+          </thead>
+          <tbody id="recent-tbody">
+            <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)" data-i18n="lbl_loading">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Stock Alerts -->
+    <div class="card">
+      <div class="card-header"><span class="card-title" data-i18n="dash_stock_alerts">Stock Alerts</span></div>
+      <div class="card-body" style="padding:12px">
+        <div id="alerts-container">
+          <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.85rem" data-i18n="dash_loading_alerts">Loading alerts...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+}
+
+// Live clock
+function updateClock() {
+  const el = document.getElementById('dash-time');
+  if (el) el.textContent = new Date().toLocaleString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+updateClock();
+setInterval(updateClock, 30000);
+
+// ── Load Dashboard Data ────────────────────────────────────
+async function loadDashboard() {
+  const res = await App.api(App.BASE_URL + 'sales.php', { action: 'dashboard_stats' }, 'GET');
+  if (!res.success) return;
+
+  const { total_sales_kg, predicted_demand, current_stock, recommended_stock, monthly_trend = [], season_breakdown = {}, recent_activity = [] } = res;
+
+  // KPI values
+  document.getElementById('stat-sales').textContent = App.fmtNum(total_sales_kg);
+  document.getElementById('stat-pred').textContent  = App.fmtNum(predicted_demand);
+  document.getElementById('stat-stock').textContent = App.fmtNum(current_stock);
+  document.getElementById('stat-rec').textContent   = App.fmtNum(recommended_stock);
+
+  // Welcome badge
+  document.getElementById('ws-sales').textContent  = App.fmtNum(total_sales_kg);
+document.getElementById('ws-pred').textContent   = App.fmtNum(predicted_demand);
+document.getElementById('ws-stock').textContent  = App.fmtNum(current_stock) ;
+
+  // KPI progress bars (relative to recommended stock as 100%)
+  const max = recommended_stock || 1;
+  setTimeout(() => {
+    document.getElementById('kpi-bar-sales').style.width  = Math.min(100, (total_sales_kg  / (max * 10)) * 100) + '%';
+    document.getElementById('kpi-bar-pred').style.width   = Math.min(100, (predicted_demand / max) * 100) + '%';
+    document.getElementById('kpi-bar-stock').style.width  = Math.min(100, (current_stock    / max) * 100) + '%';
+    document.getElementById('kpi-bar-rec').style.width    = '85%';
+  }, 200);
+
+  // Stock trend badge
+  const stockTrend = document.getElementById('kpi-stock-trend');
+  if (current_stock < recommended_stock) {
+    stockTrend.textContent = '▼ Below target';
+    stockTrend.className = 'kpi-trend down';
+  } else {
+    stockTrend.textContent = '▲ On target';
+    stockTrend.className = 'kpi-trend up';
+  }
+
+  // Recent estimates table
+  const riskBadge = r => `<span class="badge risk-${r}">${r}</span>`;
+  document.getElementById('recent-tbody').innerHTML = recent_activity.length
+    ? recent_activity.map(r => `
+      <tr>
+        <td>${App.fmtDate(r.target_date)}</td>
+        <td class="font-mono">${App.fmtNum(r.predicted_demand)} kg</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-bar" style="width:56px"><div class="progress-fill" style="width:${r.confidence_level || r.accuracy_pct || 0}%"></div></div>
+            <span style="font-size:0.7rem;color:var(--text-muted)">${r.confidence_level || r.accuracy_pct || 0}%</span>
+          </div>
+        </td>
+        <td>${riskBadge(r.risk_level)}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted)">
+        ${I18n.t('dash_no_estimates')} <a href="prediction.html" style="color:var(--brand-primary);font-weight:600">${I18n.t('dash_create_one')}</a>
+      </td></tr>`;
+
+  // Alerts
+  const alerts = [];
+  if (current_stock > 0 && current_stock < recommended_stock) {
+    const gap = Math.round(recommended_stock - current_stock);
+    alerts.push(`<div class="alert alert-danger" style="margin-bottom:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div><div class="alert-title">${I18n.t('dash_shortage')}</div>
+      <div class="alert-text">${I18n.t('dash_shortage_txt', { gap: App.fmtNum(gap) })}</div></div>
+    </div>`);
+  }
+  if (predicted_demand > 0) {
+    alerts.push(`<div class="alert alert-success" style="margin-bottom:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      <div><div class="alert-title">${I18n.t('dash_est_ready')}</div>
+      <div class="alert-text">${I18n.t('dash_est_txt', { val: App.fmtNum(predicted_demand) })}</div></div>
+    </div>`);
+  }
+  if (!alerts.length) {
+    alerts.push(`<div class="alert alert-success">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      <div><div class="alert-title">${I18n.t('dash_all_good')}</div>
+      <div class="alert-text">${I18n.t('dash_no_alerts')}</div></div>
+    </div>`);
+  }
+  document.getElementById('alerts-container').innerHTML = alerts.join('');
+
+  initCharts(
+    monthly_trend.map(t => t.month),
+    monthly_trend.map(t => parseFloat(t.total_qty)),
+    predicted_demand,
+    season_breakdown
+  );
+}
+
+// ── Charts ────────────────────────────────────────────────
+function initCharts(months, actuals, lastPrediction, seasonBreakdown = {}) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+  const tCtx = document.getElementById('trend-chart').getContext('2d');
+  const grad = tCtx.createLinearGradient(0, 0, 0, 280);
+  grad.addColorStop(0, 'rgba(249,115,22,0.22)');
+  grad.addColorStop(1, 'rgba(249,115,22,0)');
+
+  const predData = months.map((_, i) => i === months.length - 1 ? actuals[i] : null);
+  if (lastPrediction) { months.push('Estimate'); actuals.push(null); predData.push(lastPrediction); }
+
+  new Chart(tCtx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        { label: I18n.t('dash_actual') + ' (kg)', data: actuals, borderColor: '#f97316', backgroundColor: grad, borderWidth: 2.5, pointBackgroundColor: '#f97316', pointRadius: 4, pointHoverRadius: 6, fill: true, tension: 0.4 },
+        { label: I18n.t('dash_estimate') + ' (kg)', data: predData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.08)', borderWidth: 2, borderDash: [6,3], pointBackgroundColor: '#3b82f6', pointRadius: 5, fill: true, tension: 0.4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { boxWidth: 10, padding: 16, usePointStyle: true } },
+        tooltip: {
+          backgroundColor: isDark ? '#0f1c2e' : '#fff',
+          borderColor: isDark ? '#1e3045' : '#e2e8f0',
+          borderWidth: 1, padding: 12,
+          callbacks: { label: ctx => `  ${ctx.dataset.label}: ${App.fmtNum(ctx.parsed.y)} kg` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0 } },
+        y: { grid: { color: isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.04)' }, ticks: { callback: v => App.fmtNum(v) + ' kg' } }
+      }
+    }
+  });
+
+  // Season donut with custom legend — real totals from sugar_sales, grouped by season
+  const seasonLabels = [I18n.t('dash_dry'), I18n.t('dash_wet'), I18n.t('dash_harvest'), I18n.t('dash_planting')];
+  const seasonData   = [
+    Number(seasonBreakdown.dry)      || 0,
+    Number(seasonBreakdown.wet)      || 0,
+    Number(seasonBreakdown.harvest)  || 0,
+    Number(seasonBreakdown.planting) || 0,
+  ];
+  const seasonColors = ['#f97316', '#3b82f6', '#10b981', '#f59e0b'];
+  const totalSeason  = seasonData.reduce((a,b) => a+b, 0);
+
+  if (!totalSeason) {
+    document.getElementById('season-chart').replaceWith(Object.assign(document.createElement('div'), {
+      style: 'display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-muted);font-size:0.82rem;text-align:center',
+      textContent: I18n.t('lbl_no_data'),
+    }));
+    document.getElementById('season-legend').innerHTML = '';
+    return;
+  }
+
+  new Chart(document.getElementById('season-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: seasonLabels,
+      datasets: [{ data: seasonData, backgroundColor: seasonColors, borderColor: isDark ? '#0f1c2e' : '#fff', borderWidth: 3, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '70%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${App.fmtNum(ctx.parsed)} kg` } }
+      }
+    }
+  });
+
+  // Custom season legend
+  document.getElementById('season-legend').innerHTML = seasonLabels.map((lbl, i) => `
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${seasonColors[i]};flex-shrink:0"></div>
+      <div>
+        <div style="font-size:0.72rem;font-weight:600;color:var(--text-primary)">${lbl}</div>
+        <div style="font-size:0.67rem;color:var(--text-muted)">${Math.round(seasonData[i]/totalSeason*100)}%</div>
+      </div>
+    </div>`).join('');
+}
+
+loadDashboard();
+
+// Listen for language changes and re-render dashboard
+window.addEventListener('i18n:changed', () => {
+  loadDashboard();
+});
+</script>
+</body>
+</html>

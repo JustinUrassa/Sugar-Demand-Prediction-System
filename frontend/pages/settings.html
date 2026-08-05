@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Settings — SugarCast</title>
+ <link rel="stylesheet" href="../assets/css/main.css">
+ <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject('Settings', 'Manage your preferences and account settings');
+
+const user = JSON.parse(localStorage.getItem('sc_user') || '{}');
+
+const html = `
+ <div class="page-header">
+ <h1 class="page-title" data-i18n="settings_title"></h1>
+ <p class="page-subtitle" data-i18n="settings_subtitle"></p>
+ </div>
+
+ <div class="settings-layout">
+
+ <!-- Settings Sidebar Nav -->
+ <div class="settings-sidebar">
+ <div style="padding:12px;background:var(--bg-elevated);border-bottom:1px solid var(--divider)">
+ <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px" data-i18n="settings_menu">Settings Menu</div>
+ </div>
+ ${[
+ { id:'appearance', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>', label: 'settings_appear' },
+ { id:'notifications', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>', label: 'settings_notifs' },
+ { id:'security', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>', label: 'settings_security' },
+ { id:'data', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 15 17 15 17 21"/><path d="M21 21H3V3h12l6 6v12z"/></svg>', label: 'settings_data' },
+ { id:'system', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>', label: 'settings_system' },
+ ].map((item, i) => `
+ <div class="settings-nav-item ${i===0?'active':''}" onclick="switchSettings('${item.id}',this)">
+ <span>${item.icon}</span> <span>${I18n.t(item.label)}</span>
+ </div>`).join('')}
+ </div>
+
+ <!-- Content Panels -->
+ <div>
+
+ <!-- Appearance -->
+ <div class="settings-section active" id="sec-appearance">
+ <div class="card mb-4">
+ <div class="card-header"><span class="card-title" data-i18n="settings_appear">Appearance</span></div>
+ <div class="card-body">
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_theme_label">Theme</label>
+ <div style="display:flex;gap:12px;flex-wrap:wrap">
+ <label style="cursor:pointer;flex:1;min-width:120px">
+ <input type="radio" name="theme" value="light" style="display:none" ${App.theme==='light'?'checked':''} onchange="App.toggleTheme()">
+ <div class="theme-option ${App.theme==='light'?'selected':''}" id="theme-light-opt" style="border:2px solid ${App.theme==='light'?'var(--brand-primary)':'var(--border)'};border-radius:var(--radius-md);padding:16px;text-align:center;transition:all .2s">
+ <div style="font-size:1.8rem;margin-bottom:8px">Dry</div>
+ <div style="font-size:0.82rem;font-weight:600" data-i18n="settings_light"></div>
+ </div>
+ </label>
+ <label style="cursor:pointer;flex:1;min-width:120px">
+ <input type="radio" name="theme" value="dark" style="display:none" ${App.theme==='dark'?'checked':''} onchange="App.toggleTheme()">
+ <div class="theme-option ${App.theme==='dark'?'selected':''}" id="theme-dark-opt" style="border:2px solid ${App.theme==='dark'?'var(--brand-primary)':'var(--border)'};border-radius:var(--radius-md);padding:16px;text-align:center;transition:all .2s;background:var(--bg-elevated)">
+ <div style="font-size:1.8rem;margin-bottom:8px"></div>
+ <div style="font-size:0.82rem;font-weight:600" data-i18n="settings_dark"></div>
+ </div>
+ </label>
+ </div>
+ </div>
+
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_sidebar_label">Sidebar Width</label>
+ <select class="form-control" onchange="App.toast(I18n.t('settings_sidebar_saved'),'success')">
+ <option data-i18n="settings_sidebar_normal">Normal (260px)</option>
+ <option data-i18n="settings_sidebar_compact">Compact (220px)</option>
+ <option data-i18n="settings_sidebar_wide">Wide (300px)</option>
+ </select>
+ </div>
+
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_language_label">Language</label>
+ <select class="form-control">
+ <option data-i18n="settings_language_english">English (EN)</option>
+ <option data-i18n="settings_language_swahili">Swahili (SW)</option>
+ </select>
+ </div>
+
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_date_format_label">Date Format</label>
+ <select class="form-control">
+ <option data-i18n="settings_date_format_ddmmyyyy">DD/MM/YYYY</option>
+ <option data-i18n="settings_date_format_mmddyyyy">MM/DD/YYYY</option>
+ <option data-i18n="settings_date_format_yyyymmdd">YYYY-MM-DD</option>
+ </select>
+ </div>
+
+ <button class="btn btn-primary" onclick="App.toast(I18n.t('settings_saved'),'success')" data-i18n="settings_save">Save</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Notifications -->
+ <div class="settings-section" id="sec-notifications">
+ <div class="card mb-4">
+ <div class="card-header"><span class="card-title" data-i18n="settings_notifs">Notification Preferences</span></div>
+ <div class="card-body">
+ ${[
+ { label:'settings_stock_shortage_alerts', desc:'settings_stock_shortage_alerts_desc', checked:true },
+ { label:'settings_price_change_notifications', desc:'settings_price_change_notifications_desc', checked:true },
+ { label:'settings_new_estimate_ready', desc:'settings_new_estimate_ready_desc', checked:true },
+ { label:'settings_weekly_summary_email', desc:'settings_weekly_summary_email_desc', checked:false },
+ { label:'settings_report_generation_alerts', desc:'settings_report_generation_alerts_desc', checked:true },
+ { label:'settings_user_management_events', desc:'settings_user_management_events_desc', checked:false },
+ ].map(n => `
+ <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--divider)">
+ <div>
+ <div style="font-size:0.875rem;font-weight:600">${I18n.t(n.label)}</div>
+ <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">${I18n.t(n.desc)}</div>
+ </div>
+ <label class="toggle-switch" style="flex-shrink:0;margin-left:16px">
+ <input type="checkbox" ${n.checked?'checked':''}>
+ <span class="toggle-slider"></span>
+ </label>
+ </div>`).join('')}
+ <div style="margin-top:20px">
+ <button class="btn btn-primary" onclick="App.toast(I18n.t('settings_notifications_saved'),'success')" data-i18n="settings_save_preferences"> Save Preferences</button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Security -->
+ <div class="settings-section" id="sec-security">
+ <div class="card mb-4">
+ <div class="card-header"><span class="card-title" data-i18n="profile_change_pwd">Change Password</span></div>
+ <div class="card-body">
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_current_pwd">Current Password</label>
+ <input type="password" id="current-pwd" class="form-control" placeholder="Enter current password" data-i18n-placeholder="profile_current_pwd" required>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_new_pwd">New Password</label>
+ <input type="password" class="form-control" placeholder="Minimum 8 characters" id="new-pwd" data-i18n-placeholder="profile_pwd_length" required>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_conf_pwd">Confirm New Password</label>
+ <input type="password" class="form-control" placeholder="Repeat new password" id="confirm-pwd" data-i18n-placeholder="profile_confirm_pwd" required>
+ </div>
+ <button class="btn btn-primary" onclick="checkPwds()" data-i18n="profile_update_pwd">Update Password</button>
+ </div>
+ </div>
+ <div class="card">
+ <div class="card-header"><span class="card-title" data-i18n="settings_active_sessions">Active Sessions</span></div>
+ <div class="card-body">
+ <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--divider)">
+ <div>
+ <div style="font-size:0.875rem;font-weight:600" data-i18n="settings_current_session">Current Session</div>
+ <div style="font-size:0.78rem;color:var(--text-muted)" data-i18n="settings_session_details">Chrome · Mbeya, Tanzania · Active now</div>
+ </div>
+ <span class="badge badge-success" data-i18n="settings_current">Current</span>
+ </div>
+ <div style="margin-top:16px">
+ <button class="btn btn-danger btn-sm" onclick="App.toast(I18n.t('settings_sessions_signed_out'),'success')" data-i18n="settings_sign_out_sessions"> Sign Out All Other Sessions</button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Data -->
+ <div class="settings-section" id="sec-data">
+ <div class="card mb-4">
+ <div class="card-header"><span class="card-title" data-i18n="settings_data_export_title">Data & Export Settings</span></div>
+ <div class="card-body">
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_default_export">Default Export Format</label>
+ <select class="form-control">
+ <option data-i18n="settings_export_csv">CSV (.csv)</option>
+ <option data-i18n="settings_export_excel">Excel (.xlsx)</option>
+ <option data-i18n="settings_export_pdf">PDF (.pdf)</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_records_per_page">Records per Page</label>
+ <select class="form-control">
+ <option>10</option>
+ <option selected>15</option>
+ <option>25</option>
+ <option>50</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="settings_default_chart_type">Default Chart Type</label>
+ <select class="form-control">
+ <option data-i18n="settings_chart_line">Line Chart</option>
+ <option data-i18n="settings_chart_bar">Bar Chart</option>
+ <option data-i18n="settings_chart_area">Area Chart</option>
+ </select>
+ </div>
+ <div style="display:flex;gap:12px;flex-wrap:wrap">
+ <button class="btn btn-primary" onclick="App.toast(I18n.t('settings_data_saved'),'success')" data-i18n="settings_save"> Save Changes</button>
+ <button class="btn btn-secondary" onclick="App.toast(I18n.t('settings_cache_cleared'),'info')" data-i18n="settings_clear_cache"> Clear Local Cache</button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- System -->
+ <div class="settings-section" id="sec-system">
+ <div class="card">
+ <div class="card-header"><span class="card-title" data-i18n="settings_system_info_title">System Information</span></div>
+ <div class="card-body">
+ ${[
+ ['settings_application', 'SugarCast v1.0.0'],
+ ['settings_environment', 'Production'],
+ ['settings_database', 'MySQL 8.0 · sugar_demand_db'],
+ ['settings_server', 'Apache 2.4 · PHP 8.1'],
+ ['settings_last_backup', '2026-05-29 02:00 UTC'],
+ ['settings_total_records', '25 sales · 3 predictions · 3 recommendations'],
+ ['settings_logged_in_as', (user.full_name || user.username) + ' (' + (user.role||'—') + ')'],
+ ].map(([k,v]) => `
+ <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--divider)">
+ <span style="font-size:0.82rem;color:var(--text-muted);font-weight:600">${I18n.t(k)}</span>
+ <span style="font-size:0.85rem;font-weight:500;color:var(--text-primary)">${v}</span>
+ </div>`).join('')}
+ <div style="margin-top:20px">
+ <button class="btn btn-secondary btn-sm" onclick="App.toast(I18n.t('settings_system_checked'),'success')" data-i18n="settings_run_system_check"> Run System Check</button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ </div>
+ </div>
+`;
+
+// Inject all HTML into DOM
+document.getElementById('main-content').innerHTML = html;
+
+// Toggle switch CSS (injected once)
+const style = document.createElement('style');
+style.textContent = `
+ .toggle-switch { position:relative; display:inline-block; width:44px; height:24px; }
+ .toggle-switch input { opacity:0; width:0; height:0; }
+ .toggle-slider {
+ position:absolute; cursor:pointer; inset:0;
+ background:#cbd5e1; border-radius:999px; transition:.25s;
+ }
+ .toggle-slider::before {
+ content:''; position:absolute; width:18px; height:18px;
+ left:3px; bottom:3px; background:white; border-radius:50%; transition:.25s;
+ box-shadow:0 1px 4px rgba(0,0,0,.2);
+ }
+ .toggle-switch input:checked + .toggle-slider { background:var(--brand-primary); }
+ .toggle-switch input:checked + .toggle-slider::before { transform:translateX(20px); }
+`;
+
+function switchSettings(sectionId, navItem) {
+    // Remove active class from all sections and nav items
+    document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
+    
+    // Add active class to selected section and nav item
+    const section = document.getElementById('sec-' + sectionId);
+    if (section) section.classList.add('active');
+    if (navItem) navItem.classList.add('active');
+}
+
+function checkPwds() {
+    const currentInput = document.getElementById('current-pwd');
+    const np = document.getElementById('new-pwd').value;
+    const cp = document.getElementById('confirm-pwd').value;
+    const current = currentInput ? currentInput.value : '';
+
+    if (!current || !np || !cp) {
+        App.toast(I18n.t('profile_pwd_fill_fields'),'error');
+        return;
+    }
+    if (np.length < 8) {
+        App.toast(I18n.t('profile_pwd_length'),'error');
+        return;
+    }
+    if (np !== cp) {
+        App.toast(I18n.t('profile_pwd_mismatch'),'error');
+        return;
+    }
+
+    // simulate API request
+    setTimeout(() => {
+        if (current === 'password123') {
+            if (currentInput) currentInput.value = '';
+            document.getElementById('new-pwd').value = '';
+            document.getElementById('confirm-pwd').value = '';
+            App.toast(I18n.t('profile_pwd_changed'),'success');
+        } else {
+            App.toast(I18n.t('settings_update_failed'),'error');
+        }
+    }, 400);
+}
+document.head.appendChild(style);
+
+// Function to re-render settings content when language changes
+function renderSettingsContent() {
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// Listen for language changes and re-render settings instantly
+window.addEventListener('i18n:changed', () => {
+  renderSettingsContent();
+  // Re-apply data-i18n translations
+  setTimeout(() => {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = I18n.t(el.getAttribute('data-i18n'));
+    });
+  }, 10);
+});
+
+// Set language selector to current lang
+setTimeout(() => {
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = I18n.lang;
+}, 100);
+
+window.switchSettings = (id, el) => {
+ document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+ document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
+ document.getElementById('sec-'+id)?.classList.add('active');
+ el.classList.add('active');
+};
+
+window.checkPwds = async () => {
+ const currentInput = document.getElementById('current-pwd');
+ const np = document.getElementById('new-pwd').value;
+ const cp = document.getElementById('confirm-pwd').value;
+ const current = currentInput ? currentInput.value : '';
+ 
+ if (!current || !np || !cp) { 
+ App.toast(I18n.t('profile_pwd_fill_fields'),'error'); 
+ return; 
+ }
+ if (np.length < 8) { 
+ App.toast(I18n.t('profile_pwd_length'),'error'); 
+ return; 
+ }
+ if (np !== cp) { 
+ App.toast(I18n.t('profile_pwd_mismatch'),'error'); 
+ return; 
+ }
+ 
+ App.showLoading();
+ const res = await App.api(App.BASE_URL + 'users.php', {
+ action: 'change_password',
+ current_password: current,
+ new_password: np,
+ confirm_password: cp
+ }, 'POST');
+ App.hideLoading();
+ 
+ if (res.success) {
+ if (currentInput) currentInput.value = '';
+ document.getElementById('new-pwd').value = '';
+ document.getElementById('confirm-pwd').value = '';
+ App.toast(I18n.t('profile_pwd_changed'),'success');
+ } else {
+ App.toast(res.message || I18n.t('settings_update_failed'),'error');
+ }
+};
+</script>
+</body>
+</html>

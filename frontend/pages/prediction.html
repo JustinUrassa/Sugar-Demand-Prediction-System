@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demand Analysis — SugarCast</title>
+  <link rel="stylesheet" href="../assets/css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject(I18n.t('pred_title'), I18n.t('pred_subtitle'));
+
+document.getElementById('main-content').innerHTML = `
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <h1 class="page-title" data-i18n="pred_title"></h1>
+      <p class="page-subtitle" data-i18n="pred_subtitle"></p>
+    </div>
+  </div>
+
+  <!-- Import Data -->
+  <div class="card mb-4" id="import-card">
+    <div class="card-header">
+      <span class="card-title" data-i18n="pred_import_title"> Import Sales Data</span>
+    </div>
+    <div class="card-body">
+      <div class="text-xs text-muted mb-2" data-i18n="pred_import_hint">Upload a CSV of recent sales, or a photo of a receipt or ledger page — SugarCast will pull out the figures and use them below, so you don't have to type them in by hand.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="import-grid">
+        <div class="upload-zone" id="csv-upload-zone" style="padding:22px">
+          <div class="upload-zone-icon"></div>
+          <div class="upload-zone-text"><span data-i18n="pred_csv_drop">Drag & drop a CSV, or</span> <strong style="color:var(--brand-primary)" data-i18n="data_browse">click to browse</strong></div>
+          <div class="upload-zone-hint" data-i18n="pred_csv_hint">Bulk-imports sales history so the trained model has more days to work with</div>
+          <input type="file" id="pred-csv-input" accept=".csv" style="display:none">
+        </div>
+        <div class="upload-zone" id="photo-upload-zone" style="padding:22px">
+          <div class="upload-zone-icon"></div>
+          <div class="upload-zone-text"><span data-i18n="pred_photo_drop">Drag & drop a receipt photo, or</span> <strong style="color:var(--brand-primary)" data-i18n="data_browse">click to browse</strong></div>
+          <div class="upload-zone-hint" data-i18n="pred_photo_hint">JPG, PNG or WEBP — reads quantity, price and date automatically</div>
+          <input type="file" id="pred-photo-input" accept="image/*" style="display:none">
+        </div>
+      </div>
+
+      <!-- CSV import result: offer to prefill the form from the imported history -->
+      <div id="csv-review" class="hidden" style="margin-top:16px;padding:14px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+        <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px" id="csv-review-title"></div>
+        <div class="text-sm text-muted" id="csv-review-body" style="margin-bottom:10px"></div>
+        <button type="button" class="btn btn-sm btn-primary" id="csv-use-btn" data-i18n="pred_use_values">Use these values</button>
+      </div>
+
+      <!-- Photo OCR result: review/edit before saving or using -->
+      <div id="photo-review" class="hidden" style="margin-top:16px;padding:14px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+        <div style="font-weight:700;font-size:0.85rem;margin-bottom:10px" data-i18n="pred_photo_review_title"> Review extracted values</div>
+        <div class="text-xs text-muted mb-2" data-i18n="pred_photo_review_hint">SugarCast read this from your photo — double-check before using it, especially handwriting.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" data-i18n="data_sale_date">Sale Date</label>
+            <input type="date" class="form-control" id="ocr-date">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="data_qty">Quantity (kg)</label>
+            <input type="number" class="form-control" id="ocr-qty" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="data_price">Price per kg</label>
+          <input type="number" class="form-control" id="ocr-price" min="0" step="0.01">
+        </div>
+        <details style="margin-bottom:12px">
+          <summary class="text-xs text-muted" style="cursor:pointer" data-i18n="pred_photo_raw_text">Show raw text SugarCast read from the image</summary>
+          <pre id="ocr-raw-text" style="white-space:pre-wrap;font-size:0.75rem;color:var(--text-muted);margin-top:8px;max-height:120px;overflow:auto"></pre>
+        </details>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-sm btn-primary" id="ocr-use-btn" data-i18n="pred_use_values">Use these values</button>
+          <button type="button" class="btn btn-sm btn-secondary" id="ocr-save-btn" data-i18n="pred_save_as_record"> Save as sales record</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:400px 1fr;gap:24px;align-items:start" id="pred-layout">
+
+    <!-- Input Form -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" data-i18n="pred_analysis_params">Analysis Parameters</span>
+      </div>
+      <div class="card-body">
+        <form id="pred-form">
+
+          <div class="form-group">
+            <label class="form-label" data-i18n="pred_target_date">Target Date</label>
+            <input type="date" class="form-control" id="target-date" name="target_date" required>
+            <div class="text-xs text-muted mt-1">Date you want to plan stock for</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" data-i18n="pred_prev_sales">Previous Sales (kg)</label>
+            <input type="number" class="form-control" id="prev-sales" name="prev_sales"
+              placeholder="e.g. 5200" min="0" step="10" required>
+            <div class="text-xs text-muted mt-1">Total kg sold in the last comparable period</div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="pred_price_per_kg">Price per kg (Tsh)</label>
+              <input type="number" class="form-control" id="price" name="price"
+                placeholder="e.g. 2000" min="0" step="1" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="pred_current_stock">Current Stock (kg)</label>
+              <input type="number" class="form-control" id="cur-stock" name="current_stock"
+                placeholder="e.g. 6000" min="0" step="1">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" data-i18n="pred_season">Season</label>
+            <select class="form-control" name="season" id="season-sel">
+              <option value="dry">Dry Season</option>
+              <option value="wet">Wet Season</option>
+              <option value="harvest">Harvest Season</option>
+              <option value="planting">Planting Season</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-check">
+              <input type="checkbox" name="is_holiday" id="is-holiday" value="1">
+              <span data-i18n="pred_holiday">Holiday / Peak Event Period</span>
+            </label>
+            <div class="text-xs text-muted mt-1" data-i18n="pred_holiday_hint">Enable if this period includes a major public holiday</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-full" id="pred-btn" style="margin-top:8px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span id="pred-btn-text" data-i18n="pred_calculate">Calculate Estimate</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results Panel -->
+    <div id="results-panel">
+
+      <!-- Placeholder -->
+      <div class="card" id="results-placeholder" style="min-height:400px;display:flex;align-items:center;justify-content:center">
+        <div style="text-align:center;padding:40px;max-width:320px;margin:0 auto">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2" style="margin-bottom:20px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <div style="font-size:1.05rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px" data-i18n="pred_ready">Ready to Calculate</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.6"><span data-i18n="pred_instructions">Fill in the market parameters on the left and click</span> <strong data-i18n="pred_calculate">Calculate Estimate</strong> <span data-i18n="pred_instructions_end">to get a stock recommendation.</span></div>
+        </div>
+      </div>
+
+      <!-- Results (shown after calculation) -->
+      <div id="results-content" class="hidden">
+
+        <!-- Summary -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <span class="card-title" data-i18n="pred_estimate_summary">Estimate Summary</span>
+            <span class="badge badge-success" id="res-status-badge" data-i18n="pred_calculate">Calculated</span>
+          </div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
+              <div style="text-align:center;padding:18px;background:var(--bg-elevated);border-radius:var(--radius-lg);border:1px solid var(--border)">
+                <div style="font-size:1.8rem;font-weight:800;color:var(--brand-primary);letter-spacing:-1px" id="res-demand">—</div>
+                <div style="font-size:0.73rem;color:var(--text-muted);margin-top:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px" data-i18n="pred_estimated_demand">Estimated Demand</div>
+              </div>
+              <div style="text-align:center;padding:18px;background:var(--bg-elevated);border-radius:var(--radius-lg);border:1px solid var(--border)">
+                <div style="font-size:1.8rem;font-weight:800;color:var(--text-primary);letter-spacing:-1px" id="rec-stock-big">—</div>
+                <div style="font-size:0.73rem;color:var(--text-muted);margin-top:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px" data-i18n="pred_recommended_stock">Recommended Stock</div>
+              </div>
+              <div style="text-align:center;padding:18px;background:var(--bg-elevated);border-radius:var(--radius-lg);border:1px solid var(--border)">
+                <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.5px" id="res-risk">—</div>
+                <div style="font-size:0.73rem;color:var(--text-muted);margin-top:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px" data-i18n="pred_risk_level">Risk Level</div>
+              </div>
+            </div>
+
+            <!-- Demand range -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px">
+              <div style="padding:12px 14px;background:var(--bg-elevated);border-radius:var(--radius-md);border-left:3px solid var(--success)">
+                <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px" data-i18n="pred_low_estimate">Low Estimate</div>
+                <div style="font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums" id="res-lower">—</div>
+              </div>
+              <div style="padding:12px 14px;background:var(--bg-elevated);border-radius:var(--radius-md);border-left:3px solid var(--danger)">
+                <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px" data-i18n="pred_high_estimate">High Estimate</div>
+                <div style="font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums" id="res-upper">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stock Recommendation -->
+        <div class="card mb-4" id="rec-card">
+          <div class="card-header">
+            <span class="card-title" data-i18n="pred_stock_recommendation">Stock Recommendation</span>
+            <span id="rec-risk-badge" class="badge">—</span>
+          </div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px">
+              <div>
+                <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px" data-i18n="pred_recommended">Recommended</div>
+                <div style="font-size:1.3rem;font-weight:800;color:var(--brand-primary)" id="rec-stock">—</div>
+              </div>
+              <div>
+                <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px" data-i18n="pred_current">Current Stock</div>
+                <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary)" id="rec-current">—</div>
+              </div>
+              <div>
+                <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px" data-i18n="pred_gap">Gap</div>
+                <div style="font-size:1.3rem;font-weight:800" id="rec-gap">—</div>
+              </div>
+            </div>
+            <div id="rec-action-div" class="alert"></div>
+          </div>
+        </div>
+
+        <!-- Bar Chart -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Stock Overview</span></div>
+          <div class="card-body">
+            <div class="chart-wrapper" style="height:220px">
+              <canvas id="pred-viz-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- History Table -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-header">
+      <span class="card-title" data-i18n="pred_estimate_summary">Estimate History</span>
+      <button class="btn btn-sm btn-secondary" onclick="clearHistory()" data-i18n="pred_history_refresh">Refresh</button>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Calculated On</th><th>Target Date</th>
+            <th>Prev Sales</th><th>Price/kg</th><th>Season</th>
+            <th>Estimated Demand</th><th>Recommended Stock</th><th>Risk</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)" data-i18n="pred_history_empty">No estimates yet. Run your first calculation above.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+`;
+
+// Set default date to next month
+const d = new Date(); d.setMonth(d.getMonth() + 1);
+document.getElementById('target-date').value = d.toISOString().split('T')[0];
+
+function checkLayout() {
+  const layout = document.getElementById('pred-layout');
+  if (layout) layout.style.gridTemplateColumns = window.innerWidth < 900 ? '1fr' : '400px 1fr';
+}
+checkLayout();
+window.addEventListener('resize', checkLayout);
+
+// ── Import Data: CSV upload ──────────────────────────────────
+function wireUploadZone(zoneId, inputId, onFile) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  if (!zone || !input) return;
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) onFile(input.files[0]); input.value = ''; });
+  ['dragover', 'dragleave', 'drop'].forEach(evt => {
+    zone.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+  });
+  zone.addEventListener('dragover', () => zone.classList.add('drag-over'));
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) onFile(file);
+  });
+}
+
+let lastCsvStats = null;
+
+wireUploadZone('csv-upload-zone', 'pred-csv-input', async (file) => {
+  if (!file.name.toLowerCase().endsWith('.csv')) { App.toast(I18n.t('pred_csv_only'), 'error'); return; }
+  App.showLoading();
+  try {
+    const fd = new FormData();
+    fd.append('action', 'upload_csv');
+    fd.append('csv_file', file);
+    const res = await App.api(App.BASE_URL + 'sales.php', fd, 'POST');
+    if (!res.success) { App.toast(res.message || I18n.t('pred_import_failed'), 'error'); return; }
+    App.toast(res.message, 'success');
+
+    const statsRes = await App.api(App.BASE_URL + 'sales.php', { action: 'recent_stats', days: 30 }, 'GET');
+    if (statsRes.success && statsRes.record_count > 0) {
+      lastCsvStats = statsRes;
+      document.getElementById('csv-review-title').textContent = I18n.t('pred_csv_review_title');
+      document.getElementById('csv-review-body').textContent =
+        `${I18n.t('pred_last')} ${statsRes.days} ${I18n.t('pred_days')}: ${App.fmtNum(statsRes.total_qty)} kg ${I18n.t('pred_total')}, ` +
+        `${I18n.t('pred_avg_price')} Tsh ${App.fmtNum(statsRes.avg_price, 2)} (${statsRes.record_count} ${I18n.t('pred_records')})`;
+      document.getElementById('csv-review').classList.remove('hidden');
+    }
+  } catch (err) {
+    console.error('CSV import failed:', err);
+    App.toast(I18n.t('pred_import_failed'), 'error');
+  } finally {
+    App.hideLoading();
+  }
+});
+
+document.getElementById('csv-use-btn').addEventListener('click', () => {
+  if (!lastCsvStats) return;
+  document.getElementById('prev-sales').value = lastCsvStats.total_qty.toFixed(2);
+  document.getElementById('price').value = lastCsvStats.avg_price.toFixed(2);
+  App.toast(I18n.t('pred_values_applied'), 'success');
+  document.getElementById('prev-sales').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+// ── Import Data: receipt/ledger photo upload (OCR) ───────────
+wireUploadZone('photo-upload-zone', 'pred-photo-input', async (file) => {
+  if (!file.type.startsWith('image/')) { App.toast(I18n.t('pred_photo_only'), 'error'); return; }
+  App.showLoading();
+  try {
+    const fd = new FormData();
+    fd.append('action', 'ocr_extract');
+    fd.append('receipt_image', file);
+    const res = await App.api(App.BASE_URL + 'sales.php', fd, 'POST');
+    if (!res.success) { App.toast(res.message || I18n.t('pred_ocr_failed'), 'error'); return; }
+
+    const ex = res.extracted || {};
+    document.getElementById('ocr-date').value = ex.sale_date || '';
+    document.getElementById('ocr-qty').value = ex.quantity_kg ?? '';
+    document.getElementById('ocr-price').value = ex.price_per_kg ?? '';
+    document.getElementById('ocr-raw-text').textContent = res.raw_text || '';
+    document.getElementById('photo-review').classList.remove('hidden');
+    App.toast(I18n.t('pred_ocr_done'), 'success');
+  } catch (err) {
+    console.error('OCR extract failed:', err);
+    App.toast(I18n.t('pred_ocr_failed'), 'error');
+  } finally {
+    App.hideLoading();
+  }
+});
+
+document.getElementById('ocr-use-btn').addEventListener('click', () => {
+  const qty = document.getElementById('ocr-qty').value;
+  const price = document.getElementById('ocr-price').value;
+  if (qty) document.getElementById('prev-sales').value = qty;
+  if (price) document.getElementById('price').value = price;
+  App.toast(I18n.t('pred_values_applied'), 'success');
+  document.getElementById('prev-sales').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+document.getElementById('ocr-save-btn').addEventListener('click', async () => {
+  const date = document.getElementById('ocr-date').value;
+  const qty = document.getElementById('ocr-qty').value;
+  const price = document.getElementById('ocr-price').value;
+  if (!date || !qty || !price) { App.toast(I18n.t('pred_ocr_missing_fields'), 'error'); return; }
+
+  const btn = document.getElementById('ocr-save-btn');
+  btn.disabled = true;
+  try {
+    const res = await App.api(App.BASE_URL + 'sales.php', {
+      action: 'add', sale_date: date, quantity_kg: qty, price_per_kg: price,
+      market_location: 'Mbeya Central Market', sugar_type: 'brown',
+      supplier_name: '', season: document.getElementById('season-sel')?.value || 'dry', is_holiday: 0,
+    }, 'POST');
+    if (res.success) {
+      App.toast(I18n.t('pred_ocr_saved'), 'success');
+      document.getElementById('photo-review').classList.add('hidden');
+    } else {
+      App.toast(res.message || I18n.t('pred_import_failed'), 'error');
+    }
+  } catch (err) {
+    console.error('Save OCR record failed:', err);
+    App.toast(I18n.t('pred_import_failed'), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function loadHistory() {
+  const tbody = document.getElementById('history-tbody');
+  const res = await App.api(App.BASE_URL + 'recommendations.php', { action: 'list', limit: 15, _: Date.now() }, 'GET');
+  const rows = (res && res.success && Array.isArray(res.data)) ? res.data : [];
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)" data-i18n="pred_history_empty">No estimates yet. Run your first calculation above.</td></tr>';
+    if (typeof I18n !== 'undefined') I18n.init();
+    return;
+  }
+
+  const riskBadge = r => `<span class="badge risk-${r}">${r}</span>`;
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td class="text-muted">${i + 1}</td>
+      <td>${App.fmtDate(r.created_at)}</td>
+      <td><strong>${App.fmtDate(r.target_date)}</strong></td>
+      <td class="font-mono">${r.previous_sales !== undefined && r.previous_sales !== null ? App.fmtNum(r.previous_sales) + ' kg' : '—'}</td>
+      <td class="font-mono">${r.input_price !== undefined && r.input_price !== null ? 'Tsh ' + Number(r.input_price).toLocaleString() : '—'}</td>
+      <td><span class="badge badge-neutral">${r.input_season || '—'}</span></td>
+      <td class="font-mono" style="color:var(--brand-primary);font-weight:700">${App.fmtNum(r.estimated_demand)} kg</td>
+      <td class="font-mono">${App.fmtNum(r.recommended_stock)} kg</td>
+      <td>${riskBadge(r.risk_level)}</td>
+    </tr>`).join('');
+}
+loadHistory();
+
+window.clearHistory = () => {
+  App.toast('Refreshing from server…', 'info');
+  loadHistory();
+};
+
+let vizChart = null;
+
+document.getElementById('pred-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+
+  const btn    = document.getElementById('pred-btn');
+  const btnTxt = document.getElementById('pred-btn-text');
+  btn.disabled = true; btnTxt.textContent = 'Calculating…';
+  App.showLoading();
+
+  const prevSales  = parseFloat(document.getElementById('prev-sales').value);
+  const price      = parseFloat(document.getElementById('price').value);
+  const season     = document.getElementById('season-sel').value;
+  const isHoliday  = document.getElementById('is-holiday').checked ? 1 : 0;
+  const targetDate = document.getElementById('target-date').value;
+  const curStock   = parseFloat(document.getElementById('cur-stock').value) || 0;
+
+  // ── Ask the backend for a real prediction ──────────────
+  // predict.php pulls sales history and runs the trained ML model
+  // (falling back to the statistical formula when there isn't yet
+  // enough continuous history). Either way it writes a row to
+  // predictions + recommendations, so this is what makes the
+  // estimate show up on the Dashboard and Recommendations pages.
+  const res = await App.api(App.BASE_URL + 'predict.php', {
+    action: 'predict',
+    target_date: targetDate,
+    prev_sales: prevSales,
+    price, season,
+    is_holiday: isHoliday,
+    current_stock: curStock,
+  }, 'POST');
+
+  App.hideLoading();
+  btn.disabled = false; btnTxt.textContent = 'Calculate Estimate';
+
+  if (!res.success) {
+    App.toast(res.message || 'Failed to calculate estimate.', 'error');
+    return;
+  }
+
+  const estimated = Number(res.predicted_demand) || 0;
+  const lower     = Number(res.lower_bound) || 0;
+  const upper     = Number(res.upper_bound) || 0;
+  const confidence= Number(res.confidence) || 0;
+  const isMl      = res.model_used === 'ml_linear_regression';
+  const rec       = res.recommendation || {};
+  const recStock  = Number(rec.recommended_stock) || 0;
+  const risk      = rec.risk_level || 'low';
+  const gap       = recStock - curStock;
+
+  const actionClassMap = { critical: 'alert-danger', medium: 'alert-warning', low: 'alert-success' };
+  const actionClass = actionClassMap[risk] || 'alert-success';
+  const actionText  = rec.action_required || 'Stock levels are adequate. No immediate action required.';
+
+  // ── Show results ───────────────────────────────────────
+  document.getElementById('results-placeholder').classList.add('hidden');
+  document.getElementById('results-content').classList.remove('hidden');
+
+  document.getElementById('res-demand').textContent    = App.fmtNum(Math.round(estimated)) + ' kg';
+  document.getElementById('rec-stock-big').textContent = App.fmtNum(Math.round(recStock)) + ' kg';
+  document.getElementById('res-risk').innerHTML        = `<span class="badge risk-${risk}">${risk}</span>`;
+  document.getElementById('res-lower').textContent     = App.fmtNum(Math.round(lower)) + ' kg';
+  document.getElementById('res-upper').textContent     = App.fmtNum(Math.round(upper)) + ' kg';
+  document.getElementById('rec-stock').textContent     = App.fmtNum(Math.round(recStock)) + ' kg';
+  document.getElementById('rec-current').textContent   = curStock ? App.fmtNum(curStock) + ' kg' : 'Not entered';
+
+  // Model badge — replaces the old static "Calculated" label with
+  // which method actually produced this number, and how confident it is.
+  const statusBadge = document.getElementById('res-status-badge');
+  statusBadge.textContent = (isMl ? 'ML Model' : 'Statistical') + ' · ' + confidence + '% confidence';
+  statusBadge.className = 'badge ' + (isMl ? 'badge-success' : 'badge-neutral');
+
+  const gapEl = document.getElementById('rec-gap');
+  gapEl.textContent = (gap > 0 ? '−' : '+') + App.fmtNum(Math.abs(Math.round(gap))) + ' kg';
+  gapEl.style.color = gap > 0 ? 'var(--danger)' : 'var(--success)';
+
+  const recBadge = document.getElementById('rec-risk-badge');
+  recBadge.className = `badge risk-${risk}`; recBadge.textContent = risk;
+
+  const actionDiv = document.getElementById('rec-action-div');
+  actionDiv.className = `alert ${actionClass}`;
+  actionDiv.innerHTML = `<div class="alert-text">${actionText}</div>`;
+
+  // ── Chart ──────────────────────────────────────────────
+  if (vizChart) vizChart.destroy();
+  vizChart = new Chart(document.getElementById('pred-viz-chart'), {
+    type: 'bar',
+    data: {
+      labels: ['Previous Sales', 'Estimated Demand', 'Low Range', 'High Range', 'Rec. Stock'],
+      datasets: [{
+        label: 'Quantity (kg)',
+        data: [prevSales, Math.round(estimated), Math.round(lower), Math.round(upper), Math.round(recStock)],
+        backgroundColor: ['rgba(148,163,184,.6)','rgba(249,115,22,.8)','rgba(16,185,129,.6)','rgba(239,68,68,.6)','rgba(59,130,246,.8)'],
+        borderRadius: 6, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${App.fmtNum(ctx.parsed.y)} kg` } } },
+      scales: { y: { ticks: { callback: v => App.fmtNum(v) + ' kg' } }, x: { grid: { display: false } } }
+    }
+  });
+
+  await loadHistory();
+
+  App.toast('Estimate saved — check the Dashboard or Recommendations page to see it.', 'success');
+  document.getElementById('results-content').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+// Listen for language changes and re-render
+window.addEventListener('i18n:changed', () => {
+  I18n.init();
+  loadHistory();
+});
+</script>
+</body>
+</html>

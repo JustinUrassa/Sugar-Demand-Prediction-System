@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>My Profile — SugarCast</title>
+ <link rel="stylesheet" href="../assets/css/main.css">
+ <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/i18n.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+Layout.inject(I18n.t('profile_title'), I18n.t('profile_subtitle'));
+
+const user = JSON.parse(localStorage.getItem('sc_user') || '{}');
+const roleColors = { admin:'#7c3aed', trader:'#0f766e', supplier:'#d97706' };
+const roleColor = roleColors[user.role] || '#64748b';
+
+function getInitials(name='') {
+ return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || 'U';
+}
+
+function createAvatarContent(name='', picture) {
+ const initials = getInitials(name);
+ if (picture) {
+   return `<img src="${picture}" alt="${name || 'User'}"><span class="avatar-edit-badge">✎</span>`;
+ }
+ return `${initials}<span class="avatar-edit-badge">✎</span>`;
+}
+
+document.getElementById('main-content').innerHTML = `
+ <div class="profile-page-shell">
+ <div class="profile-hero" style="background:linear-gradient(135deg,#0f172a 0%,${roleColor}88 100%)">
+ <label class="profile-avatar-large profile-avatar-upload" for="pf-picture" style="background:linear-gradient(135deg,${roleColor},#0f172a)">
+ ${createAvatarContent(user.full_name, user.avatar)}
+ </label>
+ <input type="file" id="pf-picture" accept="image/*" style="display:none">
+ <div class="profile-hero-name">${user.full_name || user.username || 'Unknown User'}</div>
+ <div class="profile-hero-role">
+ <span style="background:rgba(255,255,255,0.15);backdrop-filter:blur(6px);border-radius:999px;padding:3px 12px;font-size:0.75rem">
+ ${user.role || 'User'}
+ </span>
+ </div>
+ <div style="display:flex;gap:28px;margin-top:20px;position:relative;z-index:1" id="hero-stats">
+ <div><div style="font-size:1.4rem;font-weight:700;color:#fde68a" id="hero-sales">—</div><div style="font-size:0.7rem;opacity:.65;text-transform:uppercase;letter-spacing:.6px">Sales Records</div></div>
+ <div><div style="font-size:1.4rem;font-weight:700;color:#fde68a" id="hero-preds">—</div><div style="font-size:0.7rem;opacity:.65;text-transform:uppercase;letter-spacing:.6px">Estimates Made</div></div>
+ <div><div style="font-size:1.4rem;font-weight:700;color:#fde68a">—</div><div style="font-size:0.7rem;opacity:.65;text-transform:uppercase;letter-spacing:.6px">Avg Accuracy</div></div>
+ </div>
+ </div>
+
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="profile-grid">
+
+ <!-- Edit Profile -->
+ <div class="card">
+ <div class="card-header">
+ <span class="card-title" data-i18n="profile_edit_profile"> Edit Profile</span>
+ <span class="badge badge-success" data-i18n="profile_active_account">Active Account</span>
+ </div>
+ <div class="card-body">
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_full_name">Full Name</label>
+ <input type="text" class="form-control" id="pf-name" value="${user.full_name || ''}">
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_username">Username</label>
+ <input type="text" class="form-control" value="${user.username || ''}" disabled style="opacity:0.6;cursor:not-allowed">
+ <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px" data-i18n="profile_username_cannot_change">Username cannot be changed. Contact admin if needed.</div>
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_email">Email Address</label>
+ <input type="email" class="form-control" id="pf-email" value="${user.email || ''}">
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_role">Role</label>
+ <input type="text" class="form-control" value="${user.role || ''}" disabled style="opacity:0.6;cursor:not-allowed;text-transform:capitalize">
+ <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px" data-i18n="profile_role_admin_note">Role changes require admin approval.</div>
+ </div>
+ <button class="btn btn-primary w-full" onclick="saveProfile()"> ${I18n.t('profile_save_changes')}</button>
+ </div>
+ </div>
+
+ <!-- Right column -->
+ <div style="display:flex;flex-direction:column;gap:20px">
+
+ <!-- Change Password -->
+ <div class="card">
+ <div class="card-header"><span class="card-title" data-i18n="profile_change_pwd"> Change Password</span></div>
+ <div class="card-body">
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_current_pwd">Current Password</label>
+ <input type="password" class="form-control" id="pf-cur-pwd" data-i18n-placeholder="profile_current_pwd" placeholder="Enter current password">
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_new_pwd">New Password</label>
+ <input type="password" class="form-control" id="pf-new-pwd" data-i18n-placeholder="profile_pwd_length" placeholder="Min. 8 characters">
+ </div>
+ <div class="form-group">
+ <label class="form-label" data-i18n="profile_confirm_pwd">Confirm Password</label>
+ <input type="password" class="form-control" id="pf-conf-pwd" data-i18n-placeholder="profile_confirm_pwd" placeholder="Repeat new password">
+ </div>
+ <button class="btn btn-secondary w-full" onclick="changePwd()"> ${I18n.t('profile_change_pwd')}</button>
+ </div>
+ </div>
+
+ <!-- Account Info -->
+ <div class="card">
+ <div class="card-header"><span class="card-title"> Account Info</span></div>
+ <div class="card-body" style="padding:0" id="account-info">
+ <div style="padding:16px;color:var(--text-muted);text-align:center" data-i18n="profile_loading">Loading...</div>
+ </div>
+ </div>
+
+ </div>
+ </div>
+`;
+
+const style = document.createElement('style');
+style.textContent = `
+.profile-page-shell { max-width:1080px; margin:0 auto; padding-bottom:40px; }
+.profile-hero { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.profile-hero .profile-hero-role { margin:0 auto; }
+#hero-stats { justify-content:center; }
+.profile-avatar-large { width:92px; height:92px; min-width:92px; min-height:92px; border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+.profile-avatar-large img { width:100%; height:100%; object-fit:cover; display:block; border-radius:50%; }
+.profile-avatar-upload { cursor:pointer; }
+.avatar-edit-badge { position:absolute; right:4px; bottom:4px; width:26px; height:26px; border-radius:50%; background:rgba(15,23,42,0.92); display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:#fff; border:1px solid rgba(255,255,255,0.5); }
+.profile-grid { display:grid; grid-template-columns:repeat(2,minmax(320px,1fr)); gap:20px; justify-content:center; }
+.profile-grid .card { min-width:0; }
+@media(max-width:1024px){ .profile-grid { grid-template-columns:1fr; } }
+@media(max-width:768px){.profile-grid{grid-template-columns:1fr!important}}`;
+document.head.appendChild(style);
+
+// ── Load live stats ────────────────────────────────────────
+async function loadProfileStats() {
+ // Sales count
+ const salesRes = await App.api(App.BASE_URL + 'sales.php', { action: 'list', limit: 1, page: 1 }, 'GET');
+ if (salesRes.success) document.getElementById('hero-sales').textContent = salesRes.total;
+
+ // Predictions count
+ const predRes = await App.api(App.BASE_URL + 'predict.php', { action: 'list', limit: 999 }, 'GET');
+ if (predRes.success) document.getElementById('hero-preds').textContent = predRes.data.length;
+
+ // Account info from current session data
+ const infoRows = [
+ ['User ID', user.id || '—'],
+ [' Email', user.email || '—'],
+ [' Location', 'Mbeya, Tanzania'],
+ [' Permissions', user.role === 'admin' ? 'Full Access' : user.role === 'trader' ? 'Read & Write' : 'Read Only'],
+ [' Role', user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '—'],
+ ];
+ document.getElementById('account-info').innerHTML = infoRows.map(([k,v]) => `
+ <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--divider)">
+ <span style="font-size:0.82rem;color:var(--text-muted)">${k}</span>
+ <span style="font-size:0.85rem;font-weight:600">${v}</span>
+ </div>`).join('');
+}
+
+// ── Save profile ───────────────────────────────────────────
+window.saveProfile = async () => {
+ const name = document.getElementById('pf-name').value.trim();
+ const email = document.getElementById('pf-email').value.trim();
+
+ if (!name) { App.toast(I18n.t('profile_fullname_required'), 'error'); return; }
+ if (!email) { App.toast(I18n.t('profile_email_required'), 'error'); return; }
+
+ App.showLoading();
+ const res = await App.api(App.BASE_URL + 'users.php', {
+ action: 'update_profile', full_name: name, email
+ }, 'POST');
+ App.hideLoading();
+
+ if (res.success) {
+ const u = JSON.parse(localStorage.getItem('sc_user') || '{}');
+ u.full_name = name; u.email = email;
+ localStorage.setItem('sc_user', JSON.stringify(u));
+ user.full_name = name; user.email = email;
+ App.toast(I18n.t('profile_update_success'), 'success');
+ // Name changed — repaint initials-based avatars everywhere in case
+ // there's no custom picture to keep showing.
+ if (!user.avatar) Layout.updateProfileAvatars(null);
+ } else {
+ App.toast(res.message || 'Failed to update profile.', 'error');
+ }
+};
+
+// ── Change password ────────────────────────────────────────
+window.changePwd = async () => {
+ const current = document.getElementById('pf-cur-pwd').value;
+ const np = document.getElementById('pf-new-pwd').value;
+ const conf = document.getElementById('pf-conf-pwd').value;
+
+ if (!current || !np || !conf) { App.toast(I18n.t('profile_pwd_fill_fields'), 'error'); return; }
+ if (np.length < 8) { App.toast(I18n.t('profile_pwd_length'), 'error'); return; }
+ if (np !== conf) { App.toast(I18n.t('profile_pwd_mismatch'), 'error'); return; }
+
+ App.showLoading();
+ const res = await App.api(App.BASE_URL + 'users.php', {
+ action: 'change_password', current_password: current, new_password: np, confirm_password: conf
+ }, 'POST');
+ App.hideLoading();
+
+ if (res.success) {
+ document.getElementById('pf-cur-pwd').value = '';
+ document.getElementById('pf-new-pwd').value = '';
+ document.getElementById('pf-conf-pwd').value = '';
+	App.toast(I18n.t('profile_pwd_changed'), 'success');
+ } else {
+ App.toast(res.message || 'Failed to change password.', 'error');
+ }
+};
+
+loadProfileStats();
+
+// ── Avatar upload ────────────────────────────────────────────
+// Uploads straight to the server (users.php → avatar column), so the
+// picture survives refreshes and logins instead of living only in
+// localStorage. Layout.updateProfileAvatars() then repaints every avatar
+// on the page — sidebar, topbar, dropdown, and this hero — in one shot.
+const profilePictureInput = document.getElementById('pf-picture');
+function updateAvatarPreview(src) {
+ const avatar = document.querySelector('.profile-avatar-large');
+ if (!avatar) return;
+ avatar.innerHTML = createAvatarContent(user.full_name, src);
+}
+
+if (profilePictureInput) {
+ profilePictureInput.addEventListener('change', async (event) => {
+   const file = event.target.files && event.target.files[0];
+   if (!file) return;
+   if (!file.type.startsWith('image/')) {
+     App.toast(I18n.t('profile_avatar_invalid_type'), 'error');
+     return;
+   }
+   if (file.size > 4 * 1024 * 1024) {
+     App.toast(I18n.t('profile_avatar_too_large'), 'error');
+     return;
+   }
+
+   // Instant local preview while the upload is in flight, so the click
+   // feels responsive even before the server responds.
+   const reader = new FileReader();
+   reader.onload = () => updateAvatarPreview(reader.result);
+   reader.readAsDataURL(file);
+
+   const fd = new FormData();
+   fd.append('action', 'upload_avatar');
+   fd.append('avatar', file);
+
+   App.showLoading();
+   const res = await App.api(App.BASE_URL + 'users.php', fd, 'POST');
+   App.hideLoading();
+
+   if (res.success) {
+     user.avatar = res.avatar;
+     Layout.updateProfileAvatars(res.avatar);
+     App.toast(res.message || I18n.t('profile_avatar_updated'), 'success');
+   } else {
+     updateAvatarPreview(user.avatar); // revert the optimistic preview
+     App.toast(res.message || I18n.t('profile_avatar_failed'), 'error');
+   }
+   profilePictureInput.value = '';
+ });
+}
+
+// Listen for language changes and re-render profile stats
+window.addEventListener('i18n:changed', () => {
+  loadProfileStats();
+  I18n.init();
+});
+</script>
+</body>
+</html>
