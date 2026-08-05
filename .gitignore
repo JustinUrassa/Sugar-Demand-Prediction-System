@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Machine learning models
+*.pkl
+
+# Virtual environment
+venv/
+.env
+
+# VS Code
+.vscode/
+
+# User uploads
+frontend/assets/uploads/
+
+# OS files
+Thumbs.db
+.DS_Store
